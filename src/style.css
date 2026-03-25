@@ -1,0 +1,34 @@
+/* ===== Lightbox3 ===== */
+
+.lightbox3-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  -webkit-tap-highlight-color: transparent;
+  overflow: hidden;
+}
+
+.lightbox3-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  cursor: pointer;
+}
+
+.lightbox3-image {
+  position: fixed;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+  will-change: left, top, width, height, transform;
+  transform-origin: center center;
+  touch-action: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lightbox3-image,
+  .lightbox3-backdrop {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
