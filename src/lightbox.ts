@@ -170,7 +170,8 @@ export class Lightbox {
 
   private handlePointerEnter(e: PointerEvent): void {
     if (e.pointerType !== 'mouse') return;
-    const trigger = (e.target as HTMLElement).closest(this.opts.selector) as HTMLElement | null;
+    if (!(e.target instanceof Element)) return;
+    const trigger = e.target.closest(this.opts.selector) as HTMLElement | null;
     if (!trigger) return;
     const src = this.getSrcFromTrigger(trigger);
     if (!src || this.preloadCache.has(src)) return;
@@ -179,7 +180,8 @@ export class Lightbox {
 
   private handlePointerLeave(e: PointerEvent): void {
     if (e.pointerType !== 'mouse') return;
-    const trigger = (e.target as HTMLElement).closest(this.opts.selector) as HTMLElement | null;
+    if (!(e.target instanceof Element)) return;
+    const trigger = e.target.closest(this.opts.selector) as HTMLElement | null;
     if (!trigger) return;
     this.cancelPreload();
   }
