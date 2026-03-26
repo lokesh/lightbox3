@@ -45,6 +45,7 @@ interface AnimState {
   translateY: number;
   scale: number;
   opacity: number;
+  crop: number;
 }
 
 interface PinchState {
@@ -101,6 +102,9 @@ export class Lightbox {
 
   // rAF animation handle (single loop for all spring animations)
   private rafId: number | null = null;
+
+  // Crop insets for object-fit:cover thumbnail animation (pixels in lightbox image space)
+  private cropInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 
   constructor(opts: LightboxOptions = {}) {
     this.opts = { ...DEFAULTS, ...opts };
@@ -281,6 +285,11 @@ export class Lightbox {
     const flipX = (thumbRect.x + thumbRect.width / 2) - (targetRect.x + targetRect.width / 2);
     const flipY = (thumbRect.y + thumbRect.height / 2) - (targetRect.y + targetRect.height / 2);
 
+    // Compute crop insets for object-fit:cover thumbnails
+    this.cropInsets = this.computeCropInsets(triggerEl, thumbRect, targetRect);
+    const hasCrop = this.cropInsets.top + this.cropInsets.right +
+                    this.cropInsets.bottom + this.cropInsets.left > 0;
+
     // Start full-res load immediately so it continues regardless of animation interrupts
     if (thumbSrc && thumbSrc !== src) {
       this.swapToFullRes(src, natW, natH);
@@ -288,8 +297,8 @@ export class Lightbox {
 
     // Start spring from FLIP position → identity
     this.animateSpring(
-      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0 },
-      { translateX: 0, translateY: 0, scale: 1, opacity: 1 },
+      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0 },
+      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
       this.opts.springOpen,
       () => {
         this.state.isAnimating = false;
@@ -347,8 +356,8 @@ export class Lightbox {
 
     if (!thumbRect || !this.isInViewport(thumbRect)) {
       this.animateSpring(
-        { translateX: 0, translateY: 0, scale: 1, opacity: 1 },
-        { translateX: 0, translateY: 0, scale: 1, opacity: 0 },
+        { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
+        { translateX: 0, translateY: 0, scale: 1, opacity: 0, crop: 0 },
         this.opts.springClose,
         () => this.finishClose(),
         closeWhenInvisible,
@@ -363,9 +372,14 @@ export class Lightbox {
     const flipX = (thumbRect.x + thumbRect.width / 2) - (fitRect.x + fitRect.width / 2);
     const flipY = (thumbRect.y + thumbRect.height / 2) - (fitRect.y + fitRect.height / 2);
 
+    // Recompute crop insets for close (thumb may have moved since open)
+    this.cropInsets = this.computeCropInsets(this.state.triggerEl!, thumbRect, fitRect);
+    const hasCrop = this.cropInsets.top + this.cropInsets.right +
+                    this.cropInsets.bottom + this.cropInsets.left > 0;
+
     this.animateSpring(
-      { translateX: 0, translateY: 0, scale: 1, opacity: 1 },
-      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0 },
+      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
+      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0 },
       this.opts.springClose,
       () => this.finishClose(),
       closeWhenInvisible,
@@ -411,6 +425,7 @@ export class Lightbox {
       { key: 'translateY', state: { position: from.translateY, velocity: 0 }, target: to.translateY },
       { key: 'scale', state: { position: from.scale, velocity: 0 }, target: to.scale },
       { key: 'opacity', state: { position: from.opacity, velocity: 0 }, target: to.opacity },
+      { key: 'crop', state: { position: from.crop, velocity: 0 }, target: to.crop },
     ];
 
     let lastTime = performance.now();
@@ -456,6 +471,13 @@ export class Lightbox {
   ): void {
     img.style.transform = `translate(${state.translateX}px, ${state.translateY}px) scale(${state.scale})`;
     backdrop.style.opacity = String(state.opacity);
+
+    if (state.crop > 0.001) {
+      const { top, right, bottom, left } = this.cropInsets;
+      img.style.clipPath = `inset(${state.crop * top}px ${state.crop * right}px ${state.crop * bottom}px ${state.crop * left}px)`;
+    } else {
+      img.style.clipPath = '';
+    }
   }
 
   // ─── Zoom ────────────────────────────────────────────────────
@@ -1030,8 +1052,74 @@ export class Lightbox {
   // ─── Helpers ─────────────────────────────────────────────────
 
   private getThumbRect(el: HTMLElement): DOMRect {
-    const img = el.querySelector('img') || el;
-    return img.getBoundingClientRect();
+    const img = el.querySelector('img') as HTMLImageElement | null;
+    if (!img) return el.getBoundingClientRect();
+
+    const elRect = img.getBoundingClientRect();
+    const objectFit = getComputedStyle(img).objectFit;
+
+    if (objectFit !== 'cover' || !img.naturalWidth || !img.naturalHeight) {
+      return elRect;
+    }
+
+    // When object-fit: cover is used, the image is scaled up to fill the container
+    // and cropped. Compute the virtual rect of the full uncropped image so the FLIP
+    // animation origin has the correct aspect ratio (no jitter from crop mismatch).
+    const natRatio = img.naturalWidth / img.naturalHeight;
+    const elRatio = elRect.width / elRect.height;
+
+    let renderedW: number, renderedH: number;
+    if (natRatio > elRatio) {
+      // Image wider than container: height-matched, cropped horizontally
+      renderedH = elRect.height;
+      renderedW = elRect.height * natRatio;
+    } else {
+      // Image taller than container: width-matched, cropped vertically
+      renderedW = elRect.width;
+      renderedH = elRect.width / natRatio;
+    }
+
+    // Parse object-position (default 50% 50%) to find crop offset
+    const pos = getComputedStyle(img).objectPosition || '50% 50%';
+    const parts = pos.split(/\s+/);
+    const px = parts[0]?.endsWith('%') ? parseFloat(parts[0]) / 100 : 0.5;
+    const py = parts[1]?.endsWith('%') ? parseFloat(parts[1]) / 100 : 0.5;
+
+    const offsetX = (elRect.width - renderedW) * px;
+    const offsetY = (elRect.height - renderedH) * py;
+
+    return new DOMRect(
+      elRect.x + offsetX,
+      elRect.y + offsetY,
+      renderedW,
+      renderedH,
+    );
+  }
+
+  private computeCropInsets(
+    el: HTMLElement,
+    virtualRect: DOMRect,
+    targetRect: DOMRect,
+  ): { top: number; right: number; bottom: number; left: number } {
+    const zero = { top: 0, right: 0, bottom: 0, left: 0 };
+    const img = el.querySelector('img') as HTMLImageElement | null;
+    if (!img || getComputedStyle(img).objectFit !== 'cover') return zero;
+
+    const elRect = img.getBoundingClientRect();
+
+    // Fraction of the virtual rect that is cropped on each side
+    const topFrac = Math.max(0, elRect.top - virtualRect.top) / virtualRect.height;
+    const leftFrac = Math.max(0, elRect.left - virtualRect.left) / virtualRect.width;
+    const bottomFrac = Math.max(0, virtualRect.bottom - elRect.bottom) / virtualRect.height;
+    const rightFrac = Math.max(0, virtualRect.right - elRect.right) / virtualRect.width;
+
+    // Convert to pixel insets in the lightbox image's coordinate space
+    return {
+      top: topFrac * targetRect.height,
+      right: rightFrac * targetRect.width,
+      bottom: bottomFrac * targetRect.height,
+      left: leftFrac * targetRect.width,
+    };
   }
 
   private setThumbVisibility(visible: boolean): void {

@@ -70,11 +70,38 @@
       max-width: 100%;
       display: block;
     }
+
+    .text-links a {
+      color: #6ea8fe;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .text-links a:hover {
+      color: #9ec5fe;
+    }
+
+    .text-links ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 1.05rem;
+    }
   </style>
 </head>
 <body>
   <h1>Lightbox3</h1>
   <p class="subtitle">Click any thumbnail. Spring-animated zoom. Click or press Esc to close.</p>
+
+  <h2>Text Links</h2>
+  <div class="text-links">
+    <ul>
+      <li><a href="https://picsum.photos/id/42/2400/1600" data-lightbox>A cozy workspace</a></li>
+      <li><a href="https://picsum.photos/id/48/2400/1600" data-lightbox>Mountain road at dusk</a></li>
+      <li><a href="https://picsum.photos/id/57/2400/1600" data-lightbox>Purple sunset over water</a></li>
+    </ul>
+  </div>
 
   <h2>Single Image</h2>
   <div class="single-image">
