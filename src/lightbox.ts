@@ -31,6 +31,7 @@ interface LightboxState {
 
 interface ZoomState {
   zoomed: boolean;
+  zoomingOut: boolean;
   fitRect: DOMRect;
   naturalWidth: number;
   naturalHeight: number;
@@ -151,6 +152,7 @@ export class Lightbox {
   private defaultZoomState(): ZoomState {
     return {
       zoomed: false,
+      zoomingOut: false,
       fitRect: new DOMRect(),
       naturalWidth: 0,
       naturalHeight: 0,
@@ -236,8 +238,11 @@ export class Lightbox {
 
   private handleKeydown(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
-      if (this.zoom.zoomed || this.zoom.scale !== 1) {
-        // Any zoom state (idle, animating in, or animating out) — zoom out
+      if (this.zoom.zoomingOut) {
+        // Zoom-out already in progress — close the lightbox
+        this.close();
+      } else if (this.zoom.zoomed || this.zoom.scale !== 1) {
+        // Zoomed in (idle or animating in) — zoom out first
         this.zoomOut();
       } else {
         this.close();
@@ -347,11 +352,12 @@ export class Lightbox {
     if (this.overlay) this.overlay.style.pointerEvents = 'none';
 
     // If zoomed (idle or mid-animation), reset zoom first then close
-    if (this.zoom.zoomed || this.zoom.scale !== 1) {
+    if (this.zoom.zoomed || this.zoom.zoomingOut || this.zoom.scale !== 1) {
       this.zoom.scale = 1;
       this.zoom.panX = 0;
       this.zoom.panY = 0;
       this.zoom.zoomed = false;
+      this.zoom.zoomingOut = false;
       this.imgEl!.style.transform = '';
     }
 
@@ -594,6 +600,7 @@ export class Lightbox {
 
     this.stopSpring();
     this.state.isAnimating = true;
+    this.zoom.zoomingOut = true;
 
     const fromPanX = this.zoom.panX;
     const fromPanY = this.zoom.panY;
@@ -631,6 +638,7 @@ export class Lightbox {
           Math.abs(rY.position) < 1) {
         madeInteractive = true;
         this.zoom.zoomed = false;
+        this.zoom.zoomingOut = false;
         this.state.isAnimating = false;
         this.updateCursorState();
       }
@@ -644,6 +652,7 @@ export class Lightbox {
         this.rafId = null;
         if (!madeInteractive) {
           this.zoom.zoomed = false;
+          this.zoom.zoomingOut = false;
           this.state.isAnimating = false;
           this.updateCursorState();
         }
