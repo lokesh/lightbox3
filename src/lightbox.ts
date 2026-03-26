@@ -16,6 +16,11 @@ const DEFAULTS: Required<LightboxOptions> = {
   padding: 40,
 };
 
+// For text-link triggers, the image fades in/out quickly at the animation edges.
+// When backdrop opacity is below this threshold, the image opacity is proportional;
+// above it, the image is fully opaque. Tune this to control fade speed.
+const TEXT_LINK_FADE_THRESHOLD = 0.3;
+
 interface LightboxState {
   isOpen: boolean;
   isAnimating: boolean;
@@ -105,6 +110,9 @@ export class Lightbox {
 
   // Crop insets for object-fit:cover thumbnail animation (pixels in lightbox image space)
   private cropInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+
+  // Text-link trigger: fade the image in/out quickly at animation edges
+  private isTextLink = false;
 
   constructor(opts: LightboxOptions = {}) {
     this.opts = { ...DEFAULTS, ...opts };
@@ -254,11 +262,12 @@ export class Lightbox {
 
     const thumbImg = triggerEl.querySelector('img') as HTMLImageElement | null;
     const thumbSrc = thumbImg?.currentSrc || thumbImg?.src || '';
+    this.isTextLink = !thumbImg;
     const thumbRect = this.getThumbRect(triggerEl);
 
     this.createOverlay(thumbSrc || src);
     document.addEventListener('keydown', this.handleKeydown);
-    this.setThumbVisibility(false);
+    if (thumbImg) this.setThumbVisibility(false);
 
     const thumbNatW = thumbImg?.naturalWidth || thumbRect.width;
     const thumbNatH = thumbImg?.naturalHeight || thumbRect.height;
@@ -471,6 +480,15 @@ export class Lightbox {
   ): void {
     img.style.transform = `translate(${state.translateX}px, ${state.translateY}px) scale(${state.scale})`;
     backdrop.style.opacity = String(state.opacity);
+
+    // Text-link triggers: fade the image quickly at animation edges to mask the
+    // aspect ratio mismatch when the image is small near the text.
+    if (this.isTextLink) {
+      const imgOpacity = Math.min(1, state.opacity / TEXT_LINK_FADE_THRESHOLD);
+      img.style.opacity = String(imgOpacity);
+    } else {
+      img.style.opacity = '';
+    }
 
     if (state.crop > 0.001) {
       const { top, right, bottom, left } = this.cropInsets;
