@@ -21,7 +21,7 @@
   object-fit: cover;
   user-select: none;
   -webkit-user-drag: none;
-  will-change: left, top, width, height, transform;
+  will-change: transform;
   transform-origin: center center;
   touch-action: none;
 }
