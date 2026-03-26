@@ -19,6 +19,7 @@ const DEFAULTS: Required<LightboxOptions> = {
 interface LightboxState {
   isOpen: boolean;
   isAnimating: boolean;
+  isClosing: boolean;
   triggerEl: HTMLElement | null;
   currentSrc: string;
 }
@@ -65,6 +66,7 @@ export class Lightbox {
   private state: LightboxState = {
     isOpen: false,
     isAnimating: false,
+    isClosing: false,
     triggerEl: null,
     currentSrc: '',
   };
@@ -179,10 +181,11 @@ export class Lightbox {
     const src = this.getSrcFromTrigger(trigger);
     if (!src) return;
 
-    // If lightbox is open or animating, close it first then open the new one
-    if (this.state.isOpen || this.state.isAnimating) {
+    // If lightbox is open, closing, or animating, clean up then open the new one
+    if (this.state.isOpen || this.state.isAnimating || this.state.isClosing) {
       this.stopSpring();
       this.state.isAnimating = false;
+      this.state.isClosing = false;
       this.finishClose();
       this.open(trigger, src);
       return;
@@ -193,12 +196,9 @@ export class Lightbox {
 
   private handleKeydown(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
-      if (this.zoom.zoomed && !this.state.isAnimating) {
-        // Zoomed and idle — zoom out to normal scale
+      if (this.zoom.zoomed || this.zoom.scale !== 1) {
+        // Any zoom state (idle, animating in, or animating out) — zoom out
         this.zoomOut();
-      } else if (this.zoom.scale !== 1) {
-        // Mid-zoom animation (zooming in or out) — interrupt and close
-        this.interruptAndClose();
       } else {
         this.close();
       }
@@ -215,6 +215,7 @@ export class Lightbox {
   open(triggerEl: HTMLElement, src: string): void {
     if (this.state.isOpen || this.state.isAnimating) return;
 
+    this.state.isOpen = true;
     this.state.isAnimating = true;
     this.state.triggerEl = triggerEl;
     this.state.currentSrc = src;
@@ -256,26 +257,26 @@ export class Lightbox {
     const thumbRadius = this.getThumbBorderRadius();
     const thumbRadiusPx = parseFloat(thumbRadius) || 0;
 
+    // Start full-res load immediately so it continues regardless of animation interrupts
+    if (thumbSrc && thumbSrc !== src) {
+      this.swapToFullRes(src, natW, natH);
+    }
+
     // Start spring from FLIP position → identity
     this.animateSpring(
       { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, borderRadius: thumbRadiusPx },
       { translateX: 0, translateY: 0, scale: 1, opacity: 1, borderRadius: 0 },
       this.opts.springOpen,
       () => {
-        this.state.isOpen = true;
         this.state.isAnimating = false;
         this.updateCursorState();
-
-        if (thumbSrc && thumbSrc !== src) {
-          this.swapToFullRes(src, natW, natH);
-        }
       },
     );
   }
 
   private swapToFullRes(src: string, currentNatW: number, currentNatH: number): void {
     this.loadImage(src).then((size) => {
-      if (!this.imgEl || !this.state.isOpen) return;
+      if (!this.imgEl || this.state.currentSrc !== src) return;
 
       this.imgEl.src = src;
       this.zoom.naturalWidth = size.width;
@@ -293,11 +294,15 @@ export class Lightbox {
   }
 
   close(): void {
-    // Allow closing during open animation (interrupt it)
+    if (this.state.isClosing) return;
     if (!this.state.isOpen && !this.state.isAnimating) return;
 
+    this.state.isClosing = true;
     this.stopSpring();
     this.state.isAnimating = false;
+
+    // Let clicks pass through to thumbnails underneath during close
+    if (this.overlay) this.overlay.style.pointerEvents = 'none';
 
     // If zoomed, reset zoom first then close
     if (this.zoom.zoomed) {
@@ -314,12 +319,15 @@ export class Lightbox {
       ? this.getThumbRect(this.state.triggerEl)
       : null;
 
+    const closeWhenInvisible = (s: AnimState) => s.opacity < 0.01;
+
     if (!thumbRect || !this.isInViewport(thumbRect)) {
       this.animateSpring(
         { translateX: 0, translateY: 0, scale: 1, opacity: 1, borderRadius: 0 },
         { translateX: 0, translateY: 0, scale: 1, opacity: 0, borderRadius: 0 },
         this.opts.springClose,
         () => this.finishClose(),
+        closeWhenInvisible,
       );
       return;
     }
@@ -339,23 +347,10 @@ export class Lightbox {
       { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, borderRadius: thumbRadiusPx },
       this.opts.springClose,
       () => this.finishClose(),
+      closeWhenInvisible,
     );
   }
 
-  /** Interrupt any zoom animation, reset zoom state, and start closing. */
-  private interruptAndClose(): void {
-    this.stopSpring();
-    this.state.isAnimating = false;
-
-    // Reset zoom state to unzoomed
-    this.zoom.scale = 1;
-    this.zoom.panX = 0;
-    this.zoom.panY = 0;
-    this.zoom.zoomed = false;
-    if (this.imgEl) this.imgEl.style.transform = '';
-
-    this.close();
-  }
 
   private finishClose(): void {
     this.setThumbVisibility(true);
@@ -364,6 +359,7 @@ export class Lightbox {
 
     this.state.isOpen = false;
     this.state.isAnimating = false;
+    this.state.isClosing = false;
     this.state.triggerEl = null;
     this.zoom = this.defaultZoomState();
   }
@@ -375,6 +371,7 @@ export class Lightbox {
     to: AnimState,
     config: SpringConfig,
     onComplete: () => void,
+    earlyComplete?: (current: AnimState) => boolean,
   ): void {
     this.stopSpring();
 
@@ -413,9 +410,10 @@ export class Lightbox {
         if (!result.settled) allSettled = false;
       }
 
-      this.applyAnimState(img, backdrop, current as unknown as AnimState);
+      const currentState = current as unknown as AnimState;
+      this.applyAnimState(img, backdrop, currentState);
 
-      if (allSettled) {
+      if (allSettled || earlyComplete?.(currentState)) {
         // Snap to exact final values
         this.applyAnimState(img, backdrop, to);
         this.rafId = null;
@@ -573,9 +571,13 @@ export class Lightbox {
   // ─── Pan: drag + momentum via rAF spring ────────────────────
 
   private handleImagePointerDown(e: PointerEvent): void {
-    if (!this.zoom.zoomed || this.state.isAnimating) return;
+    // Allow grabbing whenever zoomed or zooming (scale > 1)
+    if (this.zoom.scale <= 1) return;
 
+    // Interrupt any in-progress zoom animation — user is grabbing it
     this.stopSpring();
+    this.zoom.zoomed = true;
+    this.state.isAnimating = false;
 
     e.preventDefault();
     this.zoom.isDragging = true;
@@ -621,7 +623,7 @@ export class Lightbox {
 
     const wasDrag = this.zoom.dragMoved;
     this.zoom.isDragging = false;
-    this.zoom.dragMoved = false;
+    // Don't clear dragMoved here — handleImageClick needs it to suppress the click
     this.updateCursorState();
 
     if (!wasDrag) {
@@ -733,8 +735,16 @@ export class Lightbox {
   // ─── Image click handler ─────────────────────────────────────
 
   private handleImageClick(e: MouseEvent): void {
-    if (this.zoom.dragMoved) return;
-    if (this.zoom.zoomed) return; // Handled by pointerup
+    if (this.zoom.dragMoved) {
+      this.zoom.dragMoved = false;
+      return;
+    }
+
+    // Zoomed (idle or animating) — zoom out
+    if (this.zoom.zoomed || this.zoom.scale !== 1) {
+      this.zoomOut();
+      return;
+    }
 
     if (this.isZoomable()) {
       this.zoomIn(e.clientX, e.clientY);
