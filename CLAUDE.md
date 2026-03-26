@@ -1,4 +1,23 @@
-# Lightbox3
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+- `npm run build` — Rollup build → ESM, UMD, and minified UMD bundles in `dist/`
+- `npm run dev` — Rollup watch mode (rebuilds on save)
+- `npm run lint` — ESLint on `src/`
+- `npm run format` — Prettier write on `src/**/*.{ts,css}`
+- `npm run format:check` — Prettier check (CI-friendly)
+- Demo: serve the repo root (e.g. `npx serve .`) and open `/demo/index.html`
+
+## Code Structure
+
+- `src/index.ts` — Entry point. Exports `Lightbox` class, auto-initializes on `[data-lightbox]` elements.
+- `src/lightbox.ts` — Core `Lightbox` class: open/close morph, zoom, pan with momentum, preloading. All animation via rAF + spring physics.
+- `src/physics/spring.ts` — Damped harmonic oscillator (`springStep`) using semi-implicit Euler integration. Spring presets and types.
+- `src/style.css` — Overlay/backdrop/image styles. Extracted to `dist/lightbox3.css` by PostCSS.
+- `src/easing.ts` — Legacy, unused. All animations use springs.
 
 ## Animation Architecture
 
