@@ -346,8 +346,8 @@ export class Lightbox {
     // Let clicks pass through to thumbnails underneath during close
     if (this.overlay) this.overlay.style.pointerEvents = 'none';
 
-    // If zoomed, reset zoom first then close
-    if (this.zoom.zoomed) {
+    // If zoomed (idle or mid-animation), reset zoom first then close
+    if (this.zoom.zoomed || this.zoom.scale !== 1) {
       this.zoom.scale = 1;
       this.zoom.panX = 0;
       this.zoom.panY = 0;
@@ -543,6 +543,7 @@ export class Lightbox {
 
     const config = this.opts.springOpen;
     let lastTime = performance.now();
+    let madeInteractive = false;
 
     const tick = (now: number) => {
       const dt = Math.min((now - lastTime) / 1000, 0.064);
@@ -559,16 +560,26 @@ export class Lightbox {
       this.zoom.scale = rS.position;
       this.applyPanTransform();
 
+      // Make interactive as soon as visually zoomed — don't wait for spring tail
+      if (!madeInteractive && rS.position > 1) {
+        madeInteractive = true;
+        this.zoom.zoomed = true;
+        this.state.isAnimating = false;
+        this.updateCursorState();
+      }
+
       if (rX.settled && rY.settled && rS.settled) {
         this.zoom.panX = panX;
         this.zoom.panY = panY;
         this.zoom.scale = targetScale;
-        this.zoom.zoomed = true;
         this.applyPanTransform();
 
         this.rafId = null;
-        this.state.isAnimating = false;
-        this.updateCursorState();
+        if (!madeInteractive) {
+          this.zoom.zoomed = true;
+          this.state.isAnimating = false;
+          this.updateCursorState();
+        }
         return;
       }
 
@@ -594,6 +605,9 @@ export class Lightbox {
 
     const config = this.opts.springClose;
     let lastTime = performance.now();
+    let madeInteractive = false;
+
+    const VISUAL_THRESHOLD = 0.005;
 
     const tick = (now: number) => {
       const dt = Math.min((now - lastTime) / 1000, 0.064);
@@ -610,16 +624,29 @@ export class Lightbox {
       this.zoom.scale = rS.position;
       this.applyPanTransform();
 
+      // Update state as soon as visually settled — don't wait for spring tail
+      if (!madeInteractive &&
+          Math.abs(rS.position - 1) < VISUAL_THRESHOLD &&
+          Math.abs(rX.position) < 1 &&
+          Math.abs(rY.position) < 1) {
+        madeInteractive = true;
+        this.zoom.zoomed = false;
+        this.state.isAnimating = false;
+        this.updateCursorState();
+      }
+
       if (rX.settled && rY.settled && rS.settled) {
         this.zoom.panX = 0;
         this.zoom.panY = 0;
         this.zoom.scale = 1;
-        this.zoom.zoomed = false;
         this.applyPanTransform();
 
         this.rafId = null;
-        this.state.isAnimating = false;
-        this.updateCursorState();
+        if (!madeInteractive) {
+          this.zoom.zoomed = false;
+          this.state.isAnimating = false;
+          this.updateCursorState();
+        }
         return;
       }
 
@@ -872,6 +899,9 @@ export class Lightbox {
     let sScale: SpringState = { position: this.zoom.scale, velocity: 0 };
 
     let lastTime = performance.now();
+    let madeInteractive = false;
+
+    const VISUAL_THRESHOLD = 0.005;
 
     const tick = (now: number) => {
       const dt = Math.min((now - lastTime) / 1000, 0.064);
@@ -888,16 +918,29 @@ export class Lightbox {
       this.zoom.scale = rS.position;
       this.applyPanTransform();
 
+      // Update state as soon as visually settled — don't wait for spring tail
+      if (!madeInteractive &&
+          Math.abs(rS.position - targetScale) < VISUAL_THRESHOLD * targetScale &&
+          Math.abs(rX.position - targetPanX) < 1 &&
+          Math.abs(rY.position - targetPanY) < 1) {
+        madeInteractive = true;
+        this.zoom.zoomed = zoomed;
+        this.state.isAnimating = false;
+        this.updateCursorState();
+      }
+
       if (rX.settled && rY.settled && rS.settled) {
         this.zoom.panX = targetPanX;
         this.zoom.panY = targetPanY;
         this.zoom.scale = targetScale;
-        this.zoom.zoomed = zoomed;
         this.applyPanTransform();
 
         this.rafId = null;
-        this.state.isAnimating = false;
-        this.updateCursorState();
+        if (!madeInteractive) {
+          this.zoom.zoomed = zoomed;
+          this.state.isAnimating = false;
+          this.updateCursorState();
+        }
         return;
       }
 
