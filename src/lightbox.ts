@@ -45,7 +45,16 @@ interface AnimState {
   translateY: number;
   scale: number;
   opacity: number;
-  borderRadius: number;
+}
+
+interface PinchState {
+  active: boolean;
+  initialDistance: number;
+  initialScale: number;
+  initialPanX: number;
+  initialPanY: number;
+  initialMidX: number;
+  initialMidY: number;
 }
 
 interface VelocitySample {
@@ -60,6 +69,7 @@ const RUBBER_BAND_FACTOR = 0.35;
 const VELOCITY_WINDOW = 80;
 const PAN_SPRING: SpringConfig = { stiffness: 170, damping: 26, mass: 1 };
 const SNAP_SPRING: SpringConfig = { stiffness: 300, damping: 30, mass: 1 };
+const PINCH_RUBBER_BAND_FACTOR = 0.4;
 
 export class Lightbox {
   private opts: Required<LightboxOptions>;
@@ -84,6 +94,10 @@ export class Lightbox {
 
   // Velocity tracking
   private velocitySamples: VelocitySample[] = [];
+
+  // Pointer cache for multi-touch (pinch)
+  private pointerCache: PointerEvent[] = [];
+  private pinch: PinchState = this.defaultPinchState();
 
   // rAF animation handle (single loop for all spring animations)
   private rafId: number | null = null;
@@ -137,6 +151,18 @@ export class Lightbox {
       dragStartPanX: 0,
       dragStartPanY: 0,
       dragMoved: false,
+    };
+  }
+
+  private defaultPinchState(): PinchState {
+    return {
+      active: false,
+      initialDistance: 0,
+      initialScale: 1,
+      initialPanX: 0,
+      initialPanY: 0,
+      initialMidX: 0,
+      initialMidY: 0,
     };
   }
 
@@ -253,10 +279,6 @@ export class Lightbox {
     const flipX = (thumbRect.x + thumbRect.width / 2) - (targetRect.x + targetRect.width / 2);
     const flipY = (thumbRect.y + thumbRect.height / 2) - (targetRect.y + targetRect.height / 2);
 
-    // Get border radius for animation
-    const thumbRadius = this.getThumbBorderRadius();
-    const thumbRadiusPx = parseFloat(thumbRadius) || 0;
-
     // Start full-res load immediately so it continues regardless of animation interrupts
     if (thumbSrc && thumbSrc !== src) {
       this.swapToFullRes(src, natW, natH);
@@ -264,8 +286,8 @@ export class Lightbox {
 
     // Start spring from FLIP position → identity
     this.animateSpring(
-      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, borderRadius: thumbRadiusPx },
-      { translateX: 0, translateY: 0, scale: 1, opacity: 1, borderRadius: 0 },
+      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0 },
+      { translateX: 0, translateY: 0, scale: 1, opacity: 1 },
       this.opts.springOpen,
       () => {
         this.state.isAnimating = false;
@@ -323,8 +345,8 @@ export class Lightbox {
 
     if (!thumbRect || !this.isInViewport(thumbRect)) {
       this.animateSpring(
-        { translateX: 0, translateY: 0, scale: 1, opacity: 1, borderRadius: 0 },
-        { translateX: 0, translateY: 0, scale: 1, opacity: 0, borderRadius: 0 },
+        { translateX: 0, translateY: 0, scale: 1, opacity: 1 },
+        { translateX: 0, translateY: 0, scale: 1, opacity: 0 },
         this.opts.springClose,
         () => this.finishClose(),
         closeWhenInvisible,
@@ -339,12 +361,9 @@ export class Lightbox {
     const flipX = (thumbRect.x + thumbRect.width / 2) - (fitRect.x + fitRect.width / 2);
     const flipY = (thumbRect.y + thumbRect.height / 2) - (fitRect.y + fitRect.height / 2);
 
-    const thumbRadius = this.getThumbBorderRadius();
-    const thumbRadiusPx = parseFloat(thumbRadius) || 0;
-
     this.animateSpring(
-      { translateX: 0, translateY: 0, scale: 1, opacity: 1, borderRadius: 0 },
-      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, borderRadius: thumbRadiusPx },
+      { translateX: 0, translateY: 0, scale: 1, opacity: 1 },
+      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0 },
       this.opts.springClose,
       () => this.finishClose(),
       closeWhenInvisible,
@@ -362,6 +381,8 @@ export class Lightbox {
     this.state.isClosing = false;
     this.state.triggerEl = null;
     this.zoom = this.defaultZoomState();
+    this.pointerCache = [];
+    this.pinch = this.defaultPinchState();
   }
 
   // ─── Spring animation engine (rAF) ──────────────────────────
@@ -388,7 +409,6 @@ export class Lightbox {
       { key: 'translateY', state: { position: from.translateY, velocity: 0 }, target: to.translateY },
       { key: 'scale', state: { position: from.scale, velocity: 0 }, target: to.scale },
       { key: 'opacity', state: { position: from.opacity, velocity: 0 }, target: to.opacity },
-      { key: 'borderRadius', state: { position: from.borderRadius, velocity: 0 }, target: to.borderRadius },
     ];
 
     let lastTime = performance.now();
@@ -433,7 +453,6 @@ export class Lightbox {
     state: AnimState,
   ): void {
     img.style.transform = `translate(${state.translateX}px, ${state.translateY}px) scale(${state.scale})`;
-    img.style.borderRadius = `${state.borderRadius}px`;
     backdrop.style.opacity = String(state.opacity);
   }
 
@@ -571,7 +590,19 @@ export class Lightbox {
   // ─── Pan: drag + momentum via rAF spring ────────────────────
 
   private handleImagePointerDown(e: PointerEvent): void {
-    // Allow grabbing whenever zoomed or zooming (scale > 1)
+    e.preventDefault();
+
+    // Add to pointer cache
+    this.pointerCache.push(e);
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+    // Second finger down — start pinch
+    if (this.pointerCache.length === 2) {
+      this.startPinch();
+      return;
+    }
+
+    // Single pointer — only allow drag when zoomed
     if (this.zoom.scale <= 1) return;
 
     // Interrupt any in-progress zoom animation — user is grabbing it
@@ -579,7 +610,6 @@ export class Lightbox {
     this.zoom.zoomed = true;
     this.state.isAnimating = false;
 
-    e.preventDefault();
     this.zoom.isDragging = true;
     this.zoom.dragMoved = false;
     this.zoom.dragStartX = e.clientX;
@@ -590,12 +620,24 @@ export class Lightbox {
     this.velocitySamples = [];
     this.addVelocitySample(e.clientX, e.clientY);
 
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
     this.updateCursorState();
   }
 
   private handlePointerMove(e: PointerEvent): void {
-    if (!this.zoom.isDragging || !this.imgEl) return;
+    if (!this.imgEl) return;
+
+    // Update pointer in cache
+    const idx = this.pointerCache.findIndex(p => p.pointerId === e.pointerId);
+    if (idx >= 0) this.pointerCache[idx] = e;
+
+    // Pinch active — handle two-finger zoom+pan
+    if (this.pinch.active && this.pointerCache.length === 2) {
+      this.updatePinch();
+      return;
+    }
+
+    // Single-finger drag
+    if (!this.zoom.isDragging) return;
 
     const dx = e.clientX - this.zoom.dragStartX;
     const dy = e.clientY - this.zoom.dragStartY;
@@ -619,6 +661,24 @@ export class Lightbox {
   }
 
   private handlePointerUp(e: PointerEvent): void {
+    // Remove from pointer cache
+    this.pointerCache = this.pointerCache.filter(p => p.pointerId !== e.pointerId);
+
+    try {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      // Pointer capture may already be released
+    }
+
+    // Pinch ended — settle with spring
+    if (this.pinch.active) {
+      if (this.pointerCache.length < 2) {
+        this.endPinch();
+      }
+      return;
+    }
+
+    // Single-finger drag end
     if (!this.zoom.isDragging) return;
 
     const wasDrag = this.zoom.dragMoved;
@@ -630,8 +690,6 @@ export class Lightbox {
       this.zoomOut();
       return;
     }
-
-    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
 
     const velocity = this.computeVelocity();
     this.startPanMomentum(velocity.vx, velocity.vy);
@@ -659,6 +717,152 @@ export class Lightbox {
       vx: (newest.x - oldest.x) / dt,
       vy: (newest.y - oldest.y) / dt,
     };
+  }
+
+  // ─── Pinch-to-zoom ─────────────────────────────────────────
+
+  private startPinch(): void {
+    // Cancel any in-progress animation
+    this.stopSpring();
+    this.state.isAnimating = false;
+    this.zoom.isDragging = false;
+
+    const [p1, p2] = this.pointerCache;
+    const dist = Math.hypot(p2.clientX - p1.clientX, p2.clientY - p1.clientY);
+    const midX = (p1.clientX + p2.clientX) / 2;
+    const midY = (p1.clientY + p2.clientY) / 2;
+
+    this.pinch = {
+      active: true,
+      initialDistance: dist,
+      initialScale: this.zoom.scale,
+      initialPanX: this.zoom.panX,
+      initialPanY: this.zoom.panY,
+      initialMidX: midX,
+      initialMidY: midY,
+    };
+  }
+
+  private updatePinch(): void {
+    const [p1, p2] = this.pointerCache;
+    const dist = Math.hypot(p2.clientX - p1.clientX, p2.clientY - p1.clientY);
+    const midX = (p1.clientX + p2.clientX) / 2;
+    const midY = (p1.clientY + p2.clientY) / 2;
+
+    const ratio = dist / this.pinch.initialDistance;
+    const maxScale = this.getZoomScale();
+
+    let newScale = this.pinch.initialScale * ratio;
+    // Rubber-band past min/max
+    if (newScale < 1) {
+      newScale = 1 - (1 - newScale) * PINCH_RUBBER_BAND_FACTOR;
+    } else if (newScale > maxScale) {
+      newScale = maxScale + (newScale - maxScale) * PINCH_RUBBER_BAND_FACTOR;
+    }
+
+    // Focal-point correction: keep the midpoint pinned to the same content
+    const { fitRect } = this.zoom;
+    const imgCenterX = fitRect.x + fitRect.width / 2;
+    const imgCenterY = fitRect.y + fitRect.height / 2;
+
+    // Vector from image center to initial midpoint in screen space
+    const relX = this.pinch.initialMidX - imgCenterX;
+    const relY = this.pinch.initialMidY - imgCenterY;
+
+    // Pan offset so that content under the initial midpoint stays under the current midpoint
+    const scaleRatio = newScale / this.pinch.initialScale;
+    const panX = this.pinch.initialPanX + (midX - this.pinch.initialMidX) - (relX - this.pinch.initialPanX) * (scaleRatio - 1);
+    const panY = this.pinch.initialPanY + (midY - this.pinch.initialMidY) - (relY - this.pinch.initialPanY) * (scaleRatio - 1);
+
+    this.zoom.scale = newScale;
+    this.zoom.panX = panX;
+    this.zoom.panY = panY;
+    this.applyPanTransform();
+  }
+
+  private endPinch(): void {
+    this.pinch.active = false;
+    this.zoom.dragMoved = true; // Suppress the click that follows
+
+    const maxScale = this.getZoomScale();
+
+    if (this.zoom.scale < 1) {
+      // Snap back to 1 (opened state)
+      this.springToZoomState(1, 0, 0, SNAP_SPRING, false);
+    } else if (this.zoom.scale > maxScale) {
+      // Clamp to max scale, keep pan clamped
+      const bounds = this.computePanBounds(maxScale);
+      const panX = clamp(this.zoom.panX, bounds.minX, bounds.maxX);
+      const panY = clamp(this.zoom.panY, bounds.minY, bounds.maxY);
+      this.springToZoomState(maxScale, panX, panY, SNAP_SPRING, true);
+    } else {
+      // Valid zoom — clamp pan to bounds and settle
+      this.zoom.zoomed = this.zoom.scale > 1;
+      const bounds = this.computePanBounds(this.zoom.scale);
+      const inBoundsX = this.zoom.panX >= bounds.minX && this.zoom.panX <= bounds.maxX;
+      const inBoundsY = this.zoom.panY >= bounds.minY && this.zoom.panY <= bounds.maxY;
+      if (!inBoundsX || !inBoundsY) {
+        const panX = clamp(this.zoom.panX, bounds.minX, bounds.maxX);
+        const panY = clamp(this.zoom.panY, bounds.minY, bounds.maxY);
+        this.springToZoomState(this.zoom.scale, panX, panY, SNAP_SPRING, this.zoom.scale > 1);
+      } else {
+        this.updateCursorState();
+      }
+    }
+
+    // Don't auto-transition to single-finger drag — the second finger
+    // lifting off produces noisy velocity that triggers unwanted momentum.
+    // User can lift and re-place a finger to pan intentionally.
+  }
+
+  private springToZoomState(
+    targetScale: number,
+    targetPanX: number,
+    targetPanY: number,
+    config: SpringConfig,
+    zoomed: boolean,
+  ): void {
+    this.stopSpring();
+    this.state.isAnimating = true;
+
+    let sX: SpringState = { position: this.zoom.panX, velocity: 0 };
+    let sY: SpringState = { position: this.zoom.panY, velocity: 0 };
+    let sScale: SpringState = { position: this.zoom.scale, velocity: 0 };
+
+    let lastTime = performance.now();
+
+    const tick = (now: number) => {
+      const dt = Math.min((now - lastTime) / 1000, 0.064);
+      lastTime = now;
+
+      const rX = springStep(config, sX, targetPanX, dt);
+      const rY = springStep(config, sY, targetPanY, dt);
+      const rS = springStep(config, sScale, targetScale, dt);
+
+      sX = rX; sY = rY; sScale = rS;
+
+      this.zoom.panX = rX.position;
+      this.zoom.panY = rY.position;
+      this.zoom.scale = rS.position;
+      this.applyPanTransform();
+
+      if (rX.settled && rY.settled && rS.settled) {
+        this.zoom.panX = targetPanX;
+        this.zoom.panY = targetPanY;
+        this.zoom.scale = targetScale;
+        this.zoom.zoomed = zoomed;
+        this.applyPanTransform();
+
+        this.rafId = null;
+        this.state.isAnimating = false;
+        this.updateCursorState();
+        return;
+      }
+
+      this.rafId = requestAnimationFrame(tick);
+    };
+
+    this.rafId = requestAnimationFrame(tick);
   }
 
   // ─── Pan momentum (rAF spring) ─────────────────────────────
@@ -828,12 +1032,6 @@ export class Lightbox {
     return img.getBoundingClientRect();
   }
 
-  private getThumbBorderRadius(): string {
-    if (!this.state.triggerEl) return '0px';
-    const container = this.state.triggerEl.closest('a') || this.state.triggerEl;
-    return getComputedStyle(container).borderRadius || '0px';
-  }
-
   private setThumbVisibility(visible: boolean): void {
     if (!this.state.triggerEl) return;
     const img = this.state.triggerEl.querySelector('img') || this.state.triggerEl;
@@ -843,8 +1041,10 @@ export class Lightbox {
   private computeTargetRect(naturalWidth: number, naturalHeight: number): DOMRect {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const p = this.opts.padding;
-    const scale = Math.min((vw - p * 2) / naturalWidth, (vh - p * 2) / naturalHeight, 1);
+    const isMobile = vw <= 600;
+    const px = isMobile ? 0 : this.opts.padding;
+    const py = isMobile ? 20 : this.opts.padding;
+    const scale = Math.min((vw - px * 2) / naturalWidth, (vh - py * 2) / naturalHeight, 1);
     const w = naturalWidth * scale;
     const h = naturalHeight * scale;
     return new DOMRect((vw - w) / 2, (vh - h) / 2, w, h);

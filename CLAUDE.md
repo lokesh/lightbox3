@@ -19,6 +19,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `src/style.css` — Overlay/backdrop/image styles. Extracted to `dist/lightbox3.css` by PostCSS.
 - `src/easing.ts` — Legacy, unused. All animations use springs.
 
+## Vocabulary
+
+Use these terms consistently in code, comments, and conversation.
+
+### Views (what the user sees)
+
+- **closed** — No overlay, thumbnails only
+- **opened** — Image visible, fit to viewport (`scale === 1`)
+- **zoomed** — Image at native/larger scale (`scale > 1`), pannable
+
+### Transitions (animated movements between views)
+
+- **opening** — closed → opened
+- **closing** — opened → closed
+- **zooming in** — opened → zoomed
+- **zooming out** — zoomed → opened
+
+### Gestures (user-driven, in progress)
+
+- **panning** — dragging while zoomed
+- **momentum** — post-release glide (spring-driven)
+- **snap-back** — rubber-band return to pan bounds
+
+### Systems (internal engines)
+
+- **spring engine** — rAF loop + `springStep()` that drives all animations
+- **FLIP morph** — open/close technique (measure thumb → measure target → animate the delta)
+- **preloader** — hover-triggered image prefetch
+
 ## Animation Architecture
 
 **Use `requestAnimationFrame` + spring physics for all animations and gestures.** Do not use the Web Animations API (WAAPI) or CSS transitions.

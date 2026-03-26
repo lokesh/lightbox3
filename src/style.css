@@ -6,6 +6,7 @@
   z-index: 999999;
   -webkit-tap-highlight-color: transparent;
   overflow: hidden;
+  touch-action: none;
 }
 
 .lightbox3-backdrop {
