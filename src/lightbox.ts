@@ -339,7 +339,9 @@ export class Lightbox {
       this.swapToFullRes(src, natW, natH);
     }
 
-    // Start spring from FLIP position → identity
+    // Start spring from FLIP position → identity.
+    // earlyComplete fires when visually done — don't wait for the spring tail
+    // to clear isAnimating, or dismiss tracking will be blocked.
     this.animateSpring(
       { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0 },
       { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
@@ -348,6 +350,7 @@ export class Lightbox {
         this.state.isAnimating = false;
         this.updateCursorState();
       },
+      (s) => s.opacity > 0.99 && Math.abs(s.scale - 1) < 0.01,
     );
   }
 
@@ -373,6 +376,12 @@ export class Lightbox {
   close(): void {
     if (this.state.isClosing) return;
     if (!this.state.isOpen && !this.state.isAnimating) return;
+
+    // If dismiss gesture is in progress, close from the current dismiss position
+    if (this.dismiss.active) {
+      this.dismissClose(0, 0);
+      return;
+    }
 
     this.state.isClosing = true;
     this.stopSpring();
@@ -713,8 +722,11 @@ export class Lightbox {
       return;
     }
 
-    // Single pointer at fit scale — track for potential swipe-to-dismiss
-    if (this.zoom.scale <= 1) {
+    // Single pointer at fit scale — track for potential swipe-to-dismiss.
+    // Block during open animation (isAnimating=true) — the image is mid-FLIP
+    // and freezing it would leave a partial-open state. Snap-back doesn't set
+    // isAnimating, so it stays interruptible.
+    if (this.zoom.scale <= 1 && !this.state.isAnimating) {
       // Cancel any in-progress animation (e.g. snap-back) — user is grabbing it
       this.stopSpring();
       this.state.isAnimating = false;
@@ -867,6 +879,9 @@ export class Lightbox {
         this.dismiss.active = true;
         this.dismiss.tracking = false;
         this.zoom.dragMoved = true; // Suppress the click that follows pointerup
+        // Text-link triggers set img opacity via applyAnimState during open.
+        // Clear it so the image stays visible during the dismiss drag.
+        if (this.isTextLink && this.imgEl) this.imgEl.style.opacity = '';
       } else {
         // Horizontal — cancel dismiss tracking
         this.dismiss = this.defaultDismissState();
@@ -959,10 +974,12 @@ export class Lightbox {
     // Clean up as soon as the image is visually at the thumbnail — the swap
     // from animated image → real thumbnail is imperceptible at this point.
     // Don't use opacity alone: it may already be near 0 from the drag.
+    // Tolerances are wide enough to survive spring overshoot from fast flicks
+    // (at thumbnail scale, 20px of position error is a few pixels on screen).
     const atThumbnail = (s: AnimState) =>
-      Math.abs(s.scale - flipScale) < 0.01 &&
-      Math.abs(s.translateX - flipX) < 1 &&
-      Math.abs(s.translateY - flipY) < 1;
+      Math.abs(s.scale - flipScale) < 0.05 &&
+      Math.abs(s.translateX - flipX) < 20 &&
+      Math.abs(s.translateY - flipY) < 20;
 
     this.animateSpring(
       { translateX: offsetX, translateY: offsetY, scale, opacity, crop: 0 },
@@ -978,15 +995,16 @@ export class Lightbox {
     const { offsetX, offsetY, scale, opacity } = this.dismiss;
 
     this.dismiss = this.defaultDismissState();
-    this.state.isAnimating = true;
 
+    // Don't set isAnimating — snap-back is visual recovery, not a state
+    // transition. This keeps it interruptible by a new dismiss gesture
+    // (the user can grab the image mid-snap-back) while isAnimating=true
+    // during the open animation correctly blocks dismiss tracking.
     this.animateSpring(
       { translateX: offsetX, translateY: offsetY, scale, opacity, crop: 0 },
       { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
       SNAP_SPRING,
-      () => {
-        this.state.isAnimating = false;
-      },
+      () => {},
       undefined,
       { translateX: velocityX, translateY: velocityY },
     );

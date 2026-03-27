@@ -41,7 +41,7 @@
 
     .gallery {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 8px;
     }
 
@@ -60,14 +60,24 @@
       display: block;
     }
 
+    .single-image {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
     .single-image a {
-      display: inline-block;
+      display: block;
       border-radius: 0;
       overflow: hidden;
+      aspect-ratio: 4 / 3;
+      background: #1a1a1a;
     }
 
     .single-image img {
-      max-width: 100%;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
       display: block;
     }
 
