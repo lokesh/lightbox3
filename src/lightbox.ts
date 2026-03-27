@@ -70,6 +70,17 @@ interface VelocitySample {
   t: number;
 }
 
+interface DismissState {
+  tracking: boolean;      // Pointer down at scale=1, waiting to determine axis
+  active: boolean;        // Vertical axis confirmed, dismiss gesture in progress
+  startX: number;
+  startY: number;
+  offsetX: number;
+  offsetY: number;
+  scale: number;
+  opacity: number;
+}
+
 const PRELOAD_DELAY = 80;
 const DRAG_THRESHOLD = 4;
 const RUBBER_BAND_FACTOR = 0.35;
@@ -105,6 +116,7 @@ export class Lightbox {
   // Pointer cache for multi-touch (pinch)
   private pointerCache: PointerEvent[] = [];
   private pinch: PinchState = this.defaultPinchState();
+  private dismiss: DismissState = this.defaultDismissState();
 
   // rAF animation handle (single loop for all spring animations)
   private rafId: number | null = null;
@@ -180,6 +192,19 @@ export class Lightbox {
     };
   }
 
+  private defaultDismissState(): DismissState {
+    return {
+      tracking: false,
+      active: false,
+      startX: 0,
+      startY: 0,
+      offsetX: 0,
+      offsetY: 0,
+      scale: 1,
+      opacity: 1,
+    };
+  }
+
   // ─── Preloading ────────────────────────────────────────────
 
   private handlePointerEnter(e: PointerEvent): void {
@@ -238,6 +263,11 @@ export class Lightbox {
 
   private handleKeydown(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
+      if (this.dismiss.active) {
+        // Dismiss gesture in progress — complete the close
+        this.dismissClose(0, 0);
+        return;
+      }
       if (this.zoom.zoomingOut) {
         // Zoom-out already in progress — close the lightbox
         this.close();
@@ -347,6 +377,7 @@ export class Lightbox {
     this.state.isClosing = true;
     this.stopSpring();
     this.state.isAnimating = false;
+    this.dismiss = this.defaultDismissState();
 
     // Let clicks pass through to thumbnails underneath during close
     if (this.overlay) this.overlay.style.pointerEvents = 'none';
@@ -414,6 +445,7 @@ export class Lightbox {
     this.zoom = this.defaultZoomState();
     this.pointerCache = [];
     this.pinch = this.defaultPinchState();
+    this.dismiss = this.defaultDismissState();
   }
 
   // ─── Spring animation engine (rAF) ──────────────────────────
@@ -424,6 +456,7 @@ export class Lightbox {
     config: SpringConfig,
     onComplete: () => void,
     earlyComplete?: (current: AnimState) => boolean,
+    initialVelocities?: Partial<AnimState>,
   ): void {
     this.stopSpring();
 
@@ -436,11 +469,11 @@ export class Lightbox {
       state: SpringState;
       target: number;
     }[] = [
-      { key: 'translateX', state: { position: from.translateX, velocity: 0 }, target: to.translateX },
-      { key: 'translateY', state: { position: from.translateY, velocity: 0 }, target: to.translateY },
-      { key: 'scale', state: { position: from.scale, velocity: 0 }, target: to.scale },
-      { key: 'opacity', state: { position: from.opacity, velocity: 0 }, target: to.opacity },
-      { key: 'crop', state: { position: from.crop, velocity: 0 }, target: to.crop },
+      { key: 'translateX', state: { position: from.translateX, velocity: initialVelocities?.translateX ?? 0 }, target: to.translateX },
+      { key: 'translateY', state: { position: from.translateY, velocity: initialVelocities?.translateY ?? 0 }, target: to.translateY },
+      { key: 'scale', state: { position: from.scale, velocity: initialVelocities?.scale ?? 0 }, target: to.scale },
+      { key: 'opacity', state: { position: from.opacity, velocity: initialVelocities?.opacity ?? 0 }, target: to.opacity },
+      { key: 'crop', state: { position: from.crop, velocity: initialVelocities?.crop ?? 0 }, target: to.crop },
     ];
 
     let lastTime = performance.now();
@@ -680,8 +713,18 @@ export class Lightbox {
       return;
     }
 
-    // Single pointer — only allow drag when zoomed
-    if (this.zoom.scale <= 1) return;
+    // Single pointer at fit scale — track for potential swipe-to-dismiss
+    if (this.zoom.scale <= 1) {
+      // Cancel any in-progress animation (e.g. snap-back) — user is grabbing it
+      this.stopSpring();
+      this.state.isAnimating = false;
+      this.dismiss.tracking = true;
+      this.dismiss.startX = e.clientX;
+      this.dismiss.startY = e.clientY;
+      this.velocitySamples = [];
+      this.addVelocitySample(e.clientX, e.clientY);
+      return;
+    }
 
     // Interrupt any in-progress zoom animation — user is grabbing it
     this.stopSpring();
@@ -714,7 +757,13 @@ export class Lightbox {
       return;
     }
 
-    // Single-finger drag
+    // Swipe-to-dismiss tracking / active drag
+    if (this.dismiss.tracking || this.dismiss.active) {
+      this.handleDismissMove(e);
+      return;
+    }
+
+    // Single-finger drag (zoomed pan)
     if (!this.zoom.isDragging) return;
 
     const dx = e.clientX - this.zoom.dragStartX;
@@ -756,7 +805,13 @@ export class Lightbox {
       return;
     }
 
-    // Single-finger drag end
+    // Swipe-to-dismiss release
+    if (this.dismiss.tracking || this.dismiss.active) {
+      this.handleDismissRelease();
+      return;
+    }
+
+    // Single-finger drag end (zoomed pan)
     if (!this.zoom.isDragging) return;
 
     const wasDrag = this.zoom.dragMoved;
@@ -797,13 +852,154 @@ export class Lightbox {
     };
   }
 
+  // ─── Swipe-to-dismiss ──────────────────────────────────────
+
+  private handleDismissMove(e: PointerEvent): void {
+    const dx = e.clientX - this.dismiss.startX;
+    const dy = e.clientY - this.dismiss.startY;
+
+    if (!this.dismiss.active) {
+      // Still tracking — determine axis once past drag threshold
+      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+
+      if (Math.abs(dy) > Math.abs(dx)) {
+        // Vertical wins — activate dismiss
+        this.dismiss.active = true;
+        this.dismiss.tracking = false;
+        this.zoom.dragMoved = true; // Suppress the click that follows pointerup
+      } else {
+        // Horizontal — cancel dismiss tracking
+        this.dismiss = this.defaultDismissState();
+        return;
+      }
+    }
+
+    this.addVelocitySample(e.clientX, e.clientY);
+
+    // Unconstrained movement once dismiss is active
+    this.dismiss.offsetX = dx;
+    this.dismiss.offsetY = dy;
+
+    // Scale and opacity driven by distance from center
+    const vh = window.innerHeight;
+    const dist = Math.hypot(dx, dy);
+    const progress = dist / vh;
+
+    this.dismiss.scale = Math.max(0.7, 1 - progress * 0.3);
+    this.dismiss.opacity = Math.max(0, 1 - progress / 0.4);
+
+    this.applyDismissTransform();
+  }
+
+  private applyDismissTransform(): void {
+    if (!this.imgEl || !this.backdrop) return;
+    const { offsetX, offsetY, scale } = this.dismiss;
+    this.imgEl.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+    this.backdrop.style.opacity = String(this.dismiss.opacity);
+  }
+
+  private handleDismissRelease(): void {
+    if (!this.dismiss.active) {
+      // Was just tracking, never activated — reset and let click handle it
+      this.dismiss = this.defaultDismissState();
+      return;
+    }
+
+    const { vx, vy } = this.computeVelocity();
+
+    // iOS-style: dismiss is the default once the gesture activates.
+    // Snap back only if the user deliberately returned the image to center.
+    const dist = Math.hypot(this.dismiss.offsetX, this.dismiss.offsetY);
+    const speed = Math.hypot(vx, vy);
+
+    if (dist < 10 && speed < 100) {
+      this.dismissSnapBack(vx, vy);
+    } else {
+      this.dismissClose(vx, vy);
+    }
+  }
+
+  private dismissClose(velocityX: number, velocityY: number): void {
+    this.state.isClosing = true;
+    this.state.isAnimating = true;
+    if (this.overlay) this.overlay.style.pointerEvents = 'none';
+
+    const { offsetX, offsetY, scale, opacity } = this.dismiss;
+    this.dismiss = this.defaultDismissState();
+
+    const thumbRect = this.state.triggerEl
+      ? this.getThumbRect(this.state.triggerEl)
+      : null;
+
+    // Thumbnail not visible — fade out in place
+    if (!thumbRect || !this.isInViewport(thumbRect)) {
+      this.animateSpring(
+        { translateX: offsetX, translateY: offsetY, scale, opacity, crop: 0 },
+        { translateX: offsetX, translateY: offsetY, scale, opacity: 0, crop: 0 },
+        this.opts.springClose,
+        () => this.finishClose(),
+        (s) => s.opacity < 0.01,
+        { translateX: velocityX, translateY: velocityY },
+      );
+      return;
+    }
+
+    // FLIP morph back to thumbnail — same target as normal close
+    const { fitRect } = this.zoom;
+    const scaleX = thumbRect.width / fitRect.width;
+    const scaleY = thumbRect.height / fitRect.height;
+    const flipScale = Math.min(scaleX, scaleY);
+    const flipX = (thumbRect.x + thumbRect.width / 2) - (fitRect.x + fitRect.width / 2);
+    const flipY = (thumbRect.y + thumbRect.height / 2) - (fitRect.y + fitRect.height / 2);
+
+    this.cropInsets = this.computeCropInsets(this.state.triggerEl!, thumbRect, fitRect);
+    const hasCrop = this.cropInsets.top + this.cropInsets.right +
+                    this.cropInsets.bottom + this.cropInsets.left > 0;
+
+    // Clean up as soon as the image is visually at the thumbnail — the swap
+    // from animated image → real thumbnail is imperceptible at this point.
+    // Don't use opacity alone: it may already be near 0 from the drag.
+    const atThumbnail = (s: AnimState) =>
+      Math.abs(s.scale - flipScale) < 0.01 &&
+      Math.abs(s.translateX - flipX) < 1 &&
+      Math.abs(s.translateY - flipY) < 1;
+
+    this.animateSpring(
+      { translateX: offsetX, translateY: offsetY, scale, opacity, crop: 0 },
+      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0 },
+      this.opts.springClose,
+      () => this.finishClose(),
+      atThumbnail,
+      { translateX: velocityX, translateY: velocityY },
+    );
+  }
+
+  private dismissSnapBack(velocityX: number, velocityY: number): void {
+    const { offsetX, offsetY, scale, opacity } = this.dismiss;
+
+    this.dismiss = this.defaultDismissState();
+    this.state.isAnimating = true;
+
+    this.animateSpring(
+      { translateX: offsetX, translateY: offsetY, scale, opacity, crop: 0 },
+      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
+      SNAP_SPRING,
+      () => {
+        this.state.isAnimating = false;
+      },
+      undefined,
+      { translateX: velocityX, translateY: velocityY },
+    );
+  }
+
   // ─── Pinch-to-zoom ─────────────────────────────────────────
 
   private startPinch(): void {
-    // Cancel any in-progress animation
+    // Cancel any in-progress animation or dismiss gesture
     this.stopSpring();
     this.state.isAnimating = false;
     this.zoom.isDragging = false;
+    this.dismiss = this.defaultDismissState();
 
     const [p1, p2] = this.pointerCache;
     const dist = Math.hypot(p2.clientX - p1.clientX, p2.clientY - p1.clientY);
