@@ -71,4 +71,4 @@ function springStepSingle(
 
 // Presets — tuned for Motion.dev-style feel
 export const SPRING_OPEN: SpringConfig = { stiffness: 260, damping: 24, mass: 1 };
-export const SPRING_CLOSE: SpringConfig = { stiffness: 300, damping: 28, mass: 1 };
+export const SPRING_CLOSE: SpringConfig = { stiffness: 340, damping: 28, mass: 1 };

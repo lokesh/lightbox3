@@ -73,6 +73,7 @@ interface VelocitySample {
 interface DismissState {
   tracking: boolean;      // Pointer down at scale=1, waiting to determine axis
   active: boolean;        // Vertical axis confirmed, dismiss gesture in progress
+  fromOverlay: boolean;   // Gesture started on overlay (not image) — tap should close
   startX: number;
   startY: number;
   offsetX: number;
@@ -135,6 +136,7 @@ export class Lightbox {
     this.handlePointerEnter = this.handlePointerEnter.bind(this);
     this.handlePointerLeave = this.handlePointerLeave.bind(this);
     this.handleImagePointerDown = this.handleImagePointerDown.bind(this);
+    this.handleOverlayPointerDown = this.handleOverlayPointerDown.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
     this.handlePointerUp = this.handlePointerUp.bind(this);
     this.close = this.close.bind(this);
@@ -196,6 +198,7 @@ export class Lightbox {
     return {
       tracking: false,
       active: false,
+      fromOverlay: false,
       startX: 0,
       startY: 0,
       offsetX: 0,
@@ -395,8 +398,13 @@ export class Lightbox {
     this.state.isAnimating = false;
     this.dismiss = this.defaultDismissState();
 
-    // Let clicks pass through to thumbnails underneath during close
-    if (this.overlay) this.overlay.style.pointerEvents = 'none';
+    // Let clicks pass through to thumbnails underneath during close.
+    // Delayed so the overlay still blocks the synthetic click that mobile browsers
+    // dispatch after pointerup (which can arrive after rAF on mobile Safari).
+    if (this.overlay) {
+      const ov = this.overlay;
+      setTimeout(() => { ov.style.pointerEvents = 'none'; }, 80);
+    }
 
     // If zoomed (idle or mid-animation), reset zoom first then close
     if (this.zoom.zoomed || this.zoom.zoomingOut || this.zoom.scale !== 1) {
@@ -763,6 +771,28 @@ export class Lightbox {
     this.updateCursorState();
   }
 
+  private handleOverlayPointerDown(e: PointerEvent): void {
+    // Only handle pointers that land outside the image (backdrop area)
+    if (e.target === this.imgEl) return;
+
+    // Only for dismiss at fit scale, not during open animation
+    if (this.zoom.scale > 1 || this.state.isAnimating) return;
+
+    e.preventDefault();
+
+    // Capture on the overlay so move/up events are delivered here
+    this.overlay!.setPointerCapture(e.pointerId);
+
+    this.stopSpring();
+    this.state.isAnimating = false;
+    this.dismiss.tracking = true;
+    this.dismiss.fromOverlay = true;
+    this.dismiss.startX = e.clientX;
+    this.dismiss.startY = e.clientY;
+    this.velocitySamples = [];
+    this.addVelocitySample(e.clientX, e.clientY);
+  }
+
   private handlePointerMove(e: PointerEvent): void {
     if (!this.imgEl) return;
 
@@ -922,8 +952,12 @@ export class Lightbox {
 
   private handleDismissRelease(): void {
     if (!this.dismiss.active) {
-      // Was just tracking, never activated — reset and let click handle it
+      // Was just tracking, never activated.
+      // Overlay-initiated: pointer capture suppresses the backdrop click, so close here.
+      // Image-initiated: let the click handler deal with it.
+      const fromOverlay = this.dismiss.fromOverlay;
       this.dismiss = this.defaultDismissState();
+      if (fromOverlay) this.close();
       return;
     }
 
@@ -944,7 +978,10 @@ export class Lightbox {
   private dismissClose(velocityX: number, velocityY: number): void {
     this.state.isClosing = true;
     this.state.isAnimating = true;
-    if (this.overlay) this.overlay.style.pointerEvents = 'none';
+    if (this.overlay) {
+      const ov = this.overlay;
+      setTimeout(() => { ov.style.pointerEvents = 'none'; }, 80);
+    }
 
     const { offsetX, offsetY, scale, opacity } = this.dismiss;
     this.dismiss = this.defaultDismissState();
@@ -1311,6 +1348,11 @@ export class Lightbox {
     img.addEventListener('pointermove', this.handlePointerMove);
     img.addEventListener('pointerup', this.handlePointerUp);
     img.addEventListener('pointercancel', this.handlePointerUp);
+
+    overlay.addEventListener('pointerdown', this.handleOverlayPointerDown);
+    overlay.addEventListener('pointermove', this.handlePointerMove);
+    overlay.addEventListener('pointerup', this.handlePointerUp);
+    overlay.addEventListener('pointercancel', this.handlePointerUp);
 
     overlay.appendChild(backdrop);
     overlay.appendChild(img);
