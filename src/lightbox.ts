@@ -16,10 +16,13 @@ const DEFAULTS: Required<LightboxOptions> = {
   padding: 40,
 };
 
-// For text-link triggers, the image fades in/out quickly at the animation edges.
-// When backdrop opacity is below this threshold, the image opacity is proportional;
-// above it, the image is fully opaque. Tune this to control fade speed.
-const TEXT_LINK_FADE_THRESHOLD = 0.3;
+// Spinner shown while loading an image triggered from a text link.
+const SPINNER_DELAY_MS = 300;
+
+// For text-link triggers, the image stays fully opaque until the backdrop
+// drops below this threshold, then fades proportionally. Keeps the image
+// visible through ~80% of the close animation and fades quickly at the end.
+const TEXT_LINK_OPACITY_THRESHOLD = 0.2;
 
 interface LightboxState {
   isOpen: boolean;
@@ -121,12 +124,16 @@ export class Lightbox {
 
   // rAF animation handle (single loop for all spring animations)
   private rafId: number | null = null;
+  // Separate rAF for trigger bounce (runs independently after close)
+  private bounceRafId: number | null = null;
 
   // Crop insets for object-fit:cover thumbnail animation (pixels in lightbox image space)
   private cropInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 
-  // Text-link trigger: fade the image in/out quickly at animation edges
+  // Text-link trigger: no FLIP morph, load then fade in
   private isTextLink = false;
+  private spinnerEl: HTMLDivElement | null = null;
+  private spinnerTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(opts: LightboxOptions = {}) {
     this.opts = { ...DEFAULTS, ...opts };
@@ -293,6 +300,12 @@ export class Lightbox {
   open(triggerEl: HTMLElement, src: string): void {
     if (this.state.isOpen || this.state.isAnimating) return;
 
+    // Cancel any in-progress trigger bounce from a previous close
+    if (this.bounceRafId !== null) {
+      cancelAnimationFrame(this.bounceRafId);
+      this.bounceRafId = null;
+    }
+
     this.state.isOpen = true;
     this.state.isAnimating = true;
     this.state.triggerEl = triggerEl;
@@ -301,14 +314,20 @@ export class Lightbox {
     const thumbImg = triggerEl.querySelector('img') as HTMLImageElement | null;
     const thumbSrc = thumbImg?.currentSrc || thumbImg?.src || '';
     this.isTextLink = !thumbImg;
+
+    if (this.isTextLink) {
+      this.openTextLink(triggerEl, src);
+      return;
+    }
+
     const thumbRect = this.getThumbRect(triggerEl);
 
     this.createOverlay(thumbSrc || src);
     document.addEventListener('keydown', this.handleKeydown);
-    if (thumbImg) this.setThumbVisibility(false);
+    this.setThumbVisibility(false);
 
-    const thumbNatW = thumbImg?.naturalWidth || thumbRect.width;
-    const thumbNatH = thumbImg?.naturalHeight || thumbRect.height;
+    const thumbNatW = thumbImg!.naturalWidth || thumbRect.width;
+    const thumbNatH = thumbImg!.naturalHeight || thumbRect.height;
 
     const cached = this.preloadCache.get(src);
     const fullResReady = cached?.complete && cached.naturalWidth > 0;
@@ -360,6 +379,118 @@ export class Lightbox {
       },
       (s) => s.opacity > 0.99 && Math.abs(s.scale - 1) < 0.01,
     );
+  }
+
+  private openTextLink(triggerEl: HTMLElement, src: string): void {
+    const cached = this.preloadCache.get(src);
+    const fullResReady = cached?.complete && cached.naturalWidth > 0;
+
+    if (fullResReady) {
+      // Image already loaded — run the normal FLIP morph using image aspect ratio
+      this.openTextLinkWithImage(triggerEl, src, cached!.naturalWidth, cached!.naturalHeight);
+      return;
+    }
+
+    // Image not ready — show overlay + spinner, load, then morph
+    this.createOverlay('');
+    document.addEventListener('keydown', this.handleKeydown);
+    if (this.imgEl) this.imgEl.style.opacity = '0';
+
+    // Show spinner after a short delay (skip if image loads fast)
+    this.spinnerTimer = setTimeout(() => {
+      if (this.overlay && this.state.currentSrc === src) {
+        const spinner = document.createElement('div');
+        spinner.className = 'lightbox3-spinner';
+        this.overlay.appendChild(spinner);
+        this.spinnerEl = spinner;
+      }
+    }, SPINNER_DELAY_MS);
+
+    // Fade in backdrop
+    this.animateSpring(
+      { translateX: 0, translateY: 0, scale: 1, opacity: 0, crop: 0 },
+      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
+      this.opts.springOpen,
+      () => {},
+      undefined,
+    );
+
+    // Load image, then run the FLIP morph
+    this.loadImage(src).then((size) => {
+      if (!this.imgEl || this.state.currentSrc !== src) return;
+      this.removeSpinner();
+      this.openTextLinkWithImage(triggerEl, src, size.width, size.height);
+    });
+  }
+
+  /** Run the FLIP morph for a text-link trigger once image dimensions are known. */
+  private openTextLinkWithImage(
+    triggerEl: HTMLElement, src: string, natW: number, natH: number,
+  ): void {
+    const thumbRect = this.getThumbRect(triggerEl);
+    const targetRect = this.computeTargetRect(natW, natH);
+
+    // If overlay wasn't created yet (preloaded path), create it now
+    if (!this.overlay) {
+      this.createOverlay(src);
+      document.addEventListener('keydown', this.handleKeydown);
+    } else {
+      this.imgEl!.src = src;
+    }
+
+    this.positionImage(targetRect);
+
+    this.zoom = this.defaultZoomState();
+    this.zoom.fitRect = targetRect;
+    this.zoom.naturalWidth = natW;
+    this.zoom.naturalHeight = natH;
+
+    // Build a FLIP origin rect centered on the text link but with the image's
+    // aspect ratio, so the morph scales uniformly instead of stretching.
+    const textLinkRect = this.textLinkFlipRect(thumbRect, natW, natH);
+
+    const scaleX = textLinkRect.width / targetRect.width;
+    const scaleY = textLinkRect.height / targetRect.height;
+    const flipScale = Math.min(scaleX, scaleY);
+    const flipX = (textLinkRect.x + textLinkRect.width / 2) - (targetRect.x + targetRect.width / 2);
+    const flipY = (textLinkRect.y + textLinkRect.height / 2) - (targetRect.y + targetRect.height / 2);
+
+    this.animateSpring(
+      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: 0 },
+      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
+      this.opts.springOpen,
+      () => {
+        this.state.isAnimating = false;
+        this.updateCursorState();
+      },
+      (s) => s.opacity > 0.99 && Math.abs(s.scale - 1) < 0.01,
+    );
+  }
+
+  /**
+   * Build a rect centered on the text link with the image's aspect ratio.
+   * Sized so the shorter dimension matches the text link's height.
+   */
+  private textLinkFlipRect(
+    linkRect: DOMRect, natW: number, natH: number,
+  ): DOMRect {
+    const aspect = natW / natH;
+    const h = linkRect.height;
+    const w = h * aspect;
+    const cx = linkRect.x + linkRect.width / 2;
+    const cy = linkRect.y + linkRect.height / 2;
+    return new DOMRect(cx - w / 2, cy - h / 2, w, h);
+  }
+
+  private removeSpinner(): void {
+    if (this.spinnerTimer) {
+      clearTimeout(this.spinnerTimer);
+      this.spinnerTimer = null;
+    }
+    if (this.spinnerEl) {
+      this.spinnerEl.remove();
+      this.spinnerEl = null;
+    }
   }
 
   private swapToFullRes(src: string): void {
@@ -436,16 +567,26 @@ export class Lightbox {
     }
 
     const { fitRect } = this.zoom;
-    const scaleX = thumbRect.width / fitRect.width;
-    const scaleY = thumbRect.height / fitRect.height;
+
+    // For text links, build a target rect with the image's aspect ratio
+    // centered on the link, instead of morphing to the text's shape.
+    const morphRect = this.isTextLink
+      ? this.textLinkFlipRect(thumbRect, this.zoom.naturalWidth, this.zoom.naturalHeight)
+      : thumbRect;
+
+    const scaleX = morphRect.width / fitRect.width;
+    const scaleY = morphRect.height / fitRect.height;
     const flipScale = Math.min(scaleX, scaleY);
-    const flipX = (thumbRect.x + thumbRect.width / 2) - (fitRect.x + fitRect.width / 2);
-    const flipY = (thumbRect.y + thumbRect.height / 2) - (fitRect.y + fitRect.height / 2);
+    const flipX = (morphRect.x + morphRect.width / 2) - (fitRect.x + fitRect.width / 2);
+    const flipY = (morphRect.y + morphRect.height / 2) - (fitRect.y + fitRect.height / 2);
 
     // Recompute crop insets for close (thumb may have moved since open)
-    this.cropInsets = this.computeCropInsets(this.state.triggerEl!, thumbRect, fitRect);
-    const hasCrop = this.cropInsets.top + this.cropInsets.right +
-                    this.cropInsets.bottom + this.cropInsets.left > 0;
+    // Text links never have crop insets.
+    const hasCrop = this.isTextLink ? false : (() => {
+      this.cropInsets = this.computeCropInsets(this.state.triggerEl!, thumbRect, fitRect);
+      return this.cropInsets.top + this.cropInsets.right +
+             this.cropInsets.bottom + this.cropInsets.left > 0;
+    })();
 
     this.animateSpring(
       { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
@@ -458,9 +599,14 @@ export class Lightbox {
 
 
   private finishClose(): void {
+    this.removeSpinner();
     this.setThumbVisibility(true);
     this.removeOverlay();
     document.removeEventListener('keydown', this.handleKeydown);
+
+    if (this.state.triggerEl) {
+      this.bounceTrigger(this.state.triggerEl);
+    }
 
     this.state.isOpen = false;
     this.state.isAnimating = false;
@@ -470,6 +616,45 @@ export class Lightbox {
     this.pointerCache = [];
     this.pinch = this.defaultPinchState();
     this.dismiss = this.defaultDismissState();
+  }
+
+  /**
+   * "Catch" bounce: the trigger element squishes down slightly then
+   * springs back to normal scale, as if catching the lightbox image.
+   * Runs on its own rAF loop so it doesn't interfere with the main spring.
+   */
+  private bounceTrigger(el: HTMLElement): void {
+    if (this.bounceRafId !== null) {
+      cancelAnimationFrame(this.bounceRafId);
+      this.bounceRafId = null;
+    }
+
+    const config = { stiffness: 900, damping: 60, mass: 1 };
+    const spring: SpringState = { position: 0.95, velocity: 0 };
+    const target = 1;
+    let lastTime = performance.now();
+
+    el.style.transform = `scale(${spring.position})`;
+
+    const tick = (now: number) => {
+      const dt = Math.min((now - lastTime) / 1000, 0.064);
+      lastTime = now;
+
+      const result = springStep(config, spring, target, dt);
+      spring.position = result.position;
+      spring.velocity = result.velocity;
+
+      el.style.transform = result.settled ? '' : `scale(${result.position})`;
+
+      if (result.settled) {
+        this.bounceRafId = null;
+        return;
+      }
+
+      this.bounceRafId = requestAnimationFrame(tick);
+    };
+
+    this.bounceRafId = requestAnimationFrame(tick);
   }
 
   // ─── Spring animation engine (rAF) ──────────────────────────
@@ -544,14 +729,9 @@ export class Lightbox {
     img.style.transform = `translate(${state.translateX}px, ${state.translateY}px) scale(${state.scale})`;
     backdrop.style.opacity = String(state.opacity);
 
-    // Text-link triggers: fade the image quickly at animation edges to mask the
-    // aspect ratio mismatch when the image is small near the text.
-    if (this.isTextLink) {
-      const imgOpacity = Math.min(1, state.opacity / TEXT_LINK_FADE_THRESHOLD);
-      img.style.opacity = String(imgOpacity);
-    } else {
-      img.style.opacity = '';
-    }
+    img.style.opacity = this.isTextLink
+      ? String(Math.min(1, state.opacity / TEXT_LINK_OPACITY_THRESHOLD))
+      : '';
 
     if (state.crop > 0.001) {
       const { top, right, bottom, left } = this.cropInsets;
@@ -916,9 +1096,6 @@ export class Lightbox {
         this.dismiss.active = true;
         this.dismiss.tracking = false;
         this.zoom.dragMoved = true; // Suppress the click that follows pointerup
-        // Text-link triggers set img opacity via applyAnimState during open.
-        // Clear it so the image stays visible during the dismiss drag.
-        if (this.isTextLink && this.imgEl) this.imgEl.style.opacity = '';
       } else {
         // Horizontal — cancel dismiss tracking
         this.dismiss = this.defaultDismissState();
@@ -990,7 +1167,7 @@ export class Lightbox {
       ? this.getThumbRect(this.state.triggerEl)
       : null;
 
-    // Thumbnail not visible — fade out in place
+    // Off-screen thumbnails — fade out in place
     if (!thumbRect || !this.isInViewport(thumbRect)) {
       this.animateSpring(
         { translateX: offsetX, translateY: offsetY, scale, opacity, crop: 0 },
@@ -1003,17 +1180,23 @@ export class Lightbox {
       return;
     }
 
-    // FLIP morph back to thumbnail — same target as normal close
+    // FLIP morph back to thumbnail (or text-link rect with image aspect ratio)
     const { fitRect } = this.zoom;
-    const scaleX = thumbRect.width / fitRect.width;
-    const scaleY = thumbRect.height / fitRect.height;
-    const flipScale = Math.min(scaleX, scaleY);
-    const flipX = (thumbRect.x + thumbRect.width / 2) - (fitRect.x + fitRect.width / 2);
-    const flipY = (thumbRect.y + thumbRect.height / 2) - (fitRect.y + fitRect.height / 2);
+    const morphRect = this.isTextLink
+      ? this.textLinkFlipRect(thumbRect, this.zoom.naturalWidth, this.zoom.naturalHeight)
+      : thumbRect;
 
-    this.cropInsets = this.computeCropInsets(this.state.triggerEl!, thumbRect, fitRect);
-    const hasCrop = this.cropInsets.top + this.cropInsets.right +
-                    this.cropInsets.bottom + this.cropInsets.left > 0;
+    const scaleX = morphRect.width / fitRect.width;
+    const scaleY = morphRect.height / fitRect.height;
+    const flipScale = Math.min(scaleX, scaleY);
+    const flipX = (morphRect.x + morphRect.width / 2) - (fitRect.x + fitRect.width / 2);
+    const flipY = (morphRect.y + morphRect.height / 2) - (fitRect.y + fitRect.height / 2);
+
+    const hasCrop = this.isTextLink ? false : (() => {
+      this.cropInsets = this.computeCropInsets(this.state.triggerEl!, thumbRect, fitRect);
+      return this.cropInsets.top + this.cropInsets.right +
+             this.cropInsets.bottom + this.cropInsets.left > 0;
+    })();
 
     // Clean up as soon as the image is visually at the thumbnail — the swap
     // from animated image → real thumbnail is imperceptible at this point.

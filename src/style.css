@@ -26,9 +26,27 @@
   touch-action: none;
 }
 
+.lightbox3-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 32px;
+  height: 32px;
+  margin: -16px 0 0 -16px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  animation: lightbox3-spin 0.7s linear infinite;
+}
+
+@keyframes lightbox3-spin {
+  to { transform: rotate(360deg); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lightbox3-image,
-  .lightbox3-backdrop {
+  .lightbox3-backdrop,
+  .lightbox3-spinner {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
   }
