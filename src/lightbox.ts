@@ -312,7 +312,12 @@ export class Lightbox {
 
     const natW = fullResReady ? cached!.naturalWidth : thumbNatW;
     const natH = fullResReady ? cached!.naturalHeight : thumbNatH;
-    const targetRect = this.computeTargetRect(natW, natH);
+    // When full-res dimensions are unknown, use thumbnail aspect ratio to fill
+    // the viewport. Without this, the "never upscale" cap in computeTargetRect
+    // keeps the image at the thumbnail's small pixel size.
+    const targetRect = fullResReady
+      ? this.computeTargetRect(natW, natH)
+      : this.computeTargetRectFromAspectRatio(natW, natH);
 
     // Place image at final size/position, then FLIP from thumbnail
     this.positionImage(targetRect);
@@ -336,7 +341,7 @@ export class Lightbox {
 
     // Start full-res load immediately so it continues regardless of animation interrupts
     if (thumbSrc && thumbSrc !== src) {
-      this.swapToFullRes(src, natW, natH);
+      this.swapToFullRes(src);
     }
 
     // Start spring from FLIP position → identity.
@@ -354,7 +359,7 @@ export class Lightbox {
     );
   }
 
-  private swapToFullRes(src: string, currentNatW: number, currentNatH: number): void {
+  private swapToFullRes(src: string): void {
     this.loadImage(src).then((size) => {
       if (!this.imgEl || this.state.currentSrc !== src) return;
 
@@ -362,8 +367,10 @@ export class Lightbox {
       this.zoom.naturalWidth = size.width;
       this.zoom.naturalHeight = size.height;
 
-      const needsReposition = Math.abs(size.width / size.height - currentNatW / currentNatH) > 0.01;
-      if (needsReposition && !this.zoom.zoomed) {
+      // Always reposition: even when aspect ratios match, the initial target rect
+      // may have been computed from the thumbnail's aspect ratio (without the
+      // "never upscale" cap), so the real dimensions may produce a different rect.
+      if (!this.zoom.zoomed) {
         const targetRect = this.computeTargetRect(size.width, size.height);
         this.zoom.fitRect = targetRect;
         this.positionImage(targetRect);
@@ -1421,6 +1428,20 @@ export class Lightbox {
     const scale = Math.min((vw - px * 2) / naturalWidth, (vh - py * 2) / naturalHeight, 1);
     const w = naturalWidth * scale;
     const h = naturalHeight * scale;
+    return new DOMRect((vw - w) / 2, (vh - h) / 2, w, h);
+  }
+
+  /** Like computeTargetRect but without the scale ≤ 1 cap. Used when full-res
+   *  dimensions are unknown — fills the viewport based on aspect ratio alone. */
+  private computeTargetRectFromAspectRatio(width: number, height: number): DOMRect {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const isMobile = vw <= 600;
+    const px = isMobile ? 0 : this.opts.padding;
+    const py = isMobile ? 20 : this.opts.padding;
+    const scale = Math.min((vw - px * 2) / width, (vh - py * 2) / height);
+    const w = width * scale;
+    const h = height * scale;
     return new DOMRect((vw - w) / 2, (vh - h) / 2, w, h);
   }
 
