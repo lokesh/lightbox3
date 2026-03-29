@@ -1207,7 +1207,14 @@ export class Lightbox {
       this.stripOffset = result.position;
       this.applyStripOffset(result.position);
 
-      if (result.settled) {
+      // Early completion: sub-pixel position + low velocity means visually done.
+      // Without this, the spring long tail adds ~500ms of imperceptible creep.
+      const earlyDone =
+        Math.abs(result.position - toX) < 1 && Math.abs(result.velocity) < 5;
+
+      if (result.settled || earlyDone) {
+        this.stripOffset = toX;
+        this.applyStripOffset(toX);
         this.debugLog('stripRaf settled');
         this.stripRafId = null;
         onComplete();
