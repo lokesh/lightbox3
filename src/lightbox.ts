@@ -142,6 +142,7 @@ export class Lightbox {
   // Strip animation
   private stripRafId: number | null = null;
   private stripOffset: number = 0;
+  private pendingNavDirection: (1 | -1) | null = null;
   private swipeNav: SwipeNavState = this.defaultSwipeNavState();
 
   // Preload
@@ -769,6 +770,7 @@ export class Lightbox {
     this.pinch = this.defaultPinchState();
     this.dismiss = this.defaultDismissState();
     this.swipeNav = this.defaultSwipeNavState();
+    this.pendingNavDirection = null;
     this.gallery = [];
     this.currentIndex = 0;
     this.userHasNavigated = false;
@@ -820,20 +822,29 @@ export class Lightbox {
 
   next(): void {
     if (this.gallery.length <= 1) return;
-    if (this.currentIndex >= this.gallery.length - 1) return;
     if (this.zoom.scale !== 1) return;
+    this.forceCompleteStripAnimation();
+    if (this.currentIndex >= this.gallery.length - 1) {
+      this.bounceStrip(-1);
+      return;
+    }
     this.navigateTo(1);
   }
 
   prev(): void {
     if (this.gallery.length <= 1) return;
-    if (this.currentIndex <= 0) return;
     if (this.zoom.scale !== 1) return;
+    this.forceCompleteStripAnimation();
+    if (this.currentIndex <= 0) {
+      this.bounceStrip(1);
+      return;
+    }
     this.navigateTo(-1);
   }
 
   private navigateTo(direction: 1 | -1): void {
     this.userHasNavigated = true;
+    this.pendingNavDirection = direction;
 
     const slideWidth = window.innerWidth + SLIDE_GAP;
     const targetX = -direction * slideWidth;
@@ -844,6 +855,8 @@ export class Lightbox {
   }
 
   private completeNavigation(direction: 1 | -1): void {
+    this.pendingNavDirection = null;
+
     // Show old thumbnail
     this.setThumbVisibility(true);
 
@@ -1128,6 +1141,38 @@ export class Lightbox {
   private applyStripOffset(offset: number): void {
     if (this.stripEl) {
       this.stripEl.style.transform = offset ? `translateX(${offset}px)` : '';
+    }
+  }
+
+  /**
+   * Rubber-band bounce at gallery edges. Kicks the strip with velocity in the
+   * attempted direction — the spring overshoots then settles back to 0,
+   * hinting that there are no more images that way.
+   * direction: 1 = shift right (at first image), -1 = shift left (at last).
+   */
+  private bounceStrip(direction: 1 | -1): void {
+    const BOUNCE_VELOCITY = 1200;
+    const BOUNCE_SPRING: SpringConfig = { stiffness: 400, damping: 24, mass: 1 };
+    this.animateStrip(0, 0, BOUNCE_SPRING, direction * BOUNCE_VELOCITY, () => {
+      this.stripOffset = 0;
+    });
+  }
+
+  /**
+   * If a strip animation is in progress, stop it and resolve immediately.
+   * Navigation animations are completed (index updated, slots recycled).
+   * Bounce animations are just cancelled (strip reset to 0).
+   */
+  private forceCompleteStripAnimation(): void {
+    if (this.stripRafId === null) return;
+    this.stopStripSpring();
+
+    if (this.pendingNavDirection !== null) {
+      this.completeNavigation(this.pendingNavDirection);
+    } else {
+      // Bounce or other non-navigation animation — just reset
+      this.stripOffset = 0;
+      this.applyStripOffset(0);
     }
   }
 
