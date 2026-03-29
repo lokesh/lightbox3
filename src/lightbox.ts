@@ -7,6 +7,7 @@ export interface LightboxOptions {
   springOpen?: SpringConfig;
   springClose?: SpringConfig;
   padding?: number;
+  debug?: boolean;
 }
 
 const DEFAULTS: Required<LightboxOptions> = {
@@ -14,6 +15,7 @@ const DEFAULTS: Required<LightboxOptions> = {
   springOpen: SPRING_OPEN,
   springClose: SPRING_CLOSE,
   padding: 40,
+  debug: false,
 };
 
 // Spinner shown while loading an image triggered from a text link.
@@ -111,6 +113,12 @@ const SWIPE_VELOCITY_THRESHOLD = 300;
 const SWIPE_DISTANCE_THRESHOLD = 0.3;
 const PRESS_SPRING: SpringConfig = { stiffness: 300, damping: 20, mass: 1 };
 
+// Wheel scroll thresholds
+const WHEEL_NAV_THRESHOLD = 60; // Accumulated horizontal px to commit navigate
+const WHEEL_DISMISS_THRESHOLD = 150; // Accumulated vertical px to commit dismiss
+const WHEEL_ZOOM_STEP = 1.15; // Mouse wheel zoom multiplier per notch
+const WHEEL_DISMISS_VELOCITY = 600; // Simulated velocity for wheel-driven dismiss close
+
 export class Lightbox {
   private opts: Required<LightboxOptions>;
   private state: LightboxState = {
@@ -189,6 +197,19 @@ export class Lightbox {
   private pressSprings = new Map<HTMLButtonElement, { state: SpringState; target: number }>();
   private pressRafId: number | null = null;
 
+  // Scroll lock state
+  private savedBodyOverflow: string = '';
+  private savedBodyPaddingRight: string = '';
+
+  // Wheel gesture state
+  private wheelDismissY: number = 0;
+  private wheelGestureTimer: ReturnType<typeof setTimeout> | null = null;
+  private wheelSnapBackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Wheel-driven gallery navigation
+  private wheelNavCommitted: boolean = false;
+  private wheelNavTotalDelta: number = 0;
+
   constructor(opts: LightboxOptions = {}) {
     this.opts = { ...DEFAULTS, ...opts };
 
@@ -200,6 +221,7 @@ export class Lightbox {
     this.handleOverlayPointerDown = this.handleOverlayPointerDown.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
     this.handlePointerUp = this.handlePointerUp.bind(this);
+    this.handleWheel = this.handleWheel.bind(this);
     this.close = this.close.bind(this);
 
     this.attach();
@@ -216,6 +238,7 @@ export class Lightbox {
   }
 
   destroy(): void {
+    this.stopDebugPanel();
     document.removeEventListener('click', this.handleClick);
     document.removeEventListener('pointerenter', this.handlePointerEnter, true);
     document.removeEventListener('pointerleave', this.handlePointerLeave, true);
@@ -448,6 +471,7 @@ export class Lightbox {
 
   open(triggerEl: HTMLElement, src: string): void {
     if (this.state.isOpen || this.state.isAnimating) return;
+    this.debugLog('open');
 
     // Cancel any in-progress trigger bounce from a previous close
     if (this.bounceRafId !== null) {
@@ -459,6 +483,8 @@ export class Lightbox {
     this.state.isAnimating = true;
     this.state.triggerEl = triggerEl;
     this.state.currentSrc = src;
+    this.lockBodyScroll();
+    this.startDebugPanel();
 
     const thumbImg = triggerEl.querySelector('img') as HTMLImageElement | null;
     const thumbSrc = thumbImg?.currentSrc || thumbImg?.src || '';
@@ -775,12 +801,15 @@ export class Lightbox {
   }
 
   private finishClose(): void {
+    this.debugLog('finishClose');
+    this.stopDebugPanel();
     this.removeSpinner();
     this.stopChromeSpring();
     this.chromeSpring = { position: 0, velocity: 0 };
     this.chromeBaseOpacity = 0;
     this.setThumbVisibility(true);
     this.removeOverlay();
+    this.unlockBodyScroll();
     document.removeEventListener('keydown', this.handleKeydown);
 
     if (this.state.triggerEl) {
@@ -803,6 +832,17 @@ export class Lightbox {
     this.stripOffset = 0;
     this.preloadQueue = [];
     this.preloadingActive = false;
+    this.wheelDismissY = 0;
+    this.wheelNavCommitted = false;
+    this.wheelNavTotalDelta = 0;
+    if (this.wheelGestureTimer !== null) {
+      clearTimeout(this.wheelGestureTimer);
+      this.wheelGestureTimer = null;
+    }
+    if (this.wheelSnapBackTimer !== null) {
+      clearTimeout(this.wheelSnapBackTimer);
+      this.wheelSnapBackTimer = null;
+    }
   }
 
   /**
@@ -869,6 +909,7 @@ export class Lightbox {
   }
 
   private navigateTo(direction: 1 | -1): void {
+    this.debugLog(`navigateTo(${direction > 0 ? 'next' : 'prev'})`);
     this.userHasNavigated = true;
     this.pendingNavDirection = direction;
 
@@ -886,6 +927,7 @@ export class Lightbox {
   }
 
   private completeNavigation(direction: 1 | -1): void {
+    this.debugLog(`completeNavigation(${direction > 0 ? 'next' : 'prev'})`);
     this.pendingNavDirection = null;
 
     // Show old thumbnail
@@ -918,6 +960,10 @@ export class Lightbox {
 
     // Preload more images
     this.schedulePreloads();
+
+    // Wheel navigation: ready for new gesture now that the image has landed
+    this.wheelNavCommitted = false;
+    this.wheelNavTotalDelta = 0;
   }
 
   /**
@@ -1105,6 +1151,7 @@ export class Lightbox {
       if (allSettled || earlyComplete?.(currentState)) {
         // Snap to exact final values
         this.applyAnimState(img, backdrop, to);
+        this.debugLog(`mainRaf settled${earlyComplete?.(currentState) ? ' (early)' : ''}`);
         this.rafId = null;
         onComplete();
         return;
@@ -1161,6 +1208,7 @@ export class Lightbox {
       this.applyStripOffset(result.position);
 
       if (result.settled) {
+        this.debugLog('stripRaf settled');
         this.stripRafId = null;
         onComplete();
         return;
@@ -1192,6 +1240,7 @@ export class Lightbox {
    * direction: 1 = shift right (at first image), -1 = shift left (at last).
    */
   private bounceStrip(direction: 1 | -1): void {
+    this.debugLog(`bounceStrip(${direction > 0 ? 'right' : 'left'})`);
     const BOUNCE_VELOCITY = 1200;
     const BOUNCE_SPRING: SpringConfig = { stiffness: 400, damping: 24, mass: 1 };
     this.animateStrip(0, 0, BOUNCE_SPRING, direction * BOUNCE_VELOCITY, () => {
@@ -1232,6 +1281,7 @@ export class Lightbox {
 
   private zoomIn(clickX: number, clickY: number): void {
     if (!this.imgEl || !this.isZoomable()) return;
+    this.debugLog('zoomIn');
 
     this.stopSpring();
     this.state.isAnimating = true;
@@ -1313,6 +1363,7 @@ export class Lightbox {
 
   private zoomOut(): void {
     if (!this.imgEl) return;
+    this.debugLog('zoomOut');
 
     this.stopSpring();
     this.state.isAnimating = true;
@@ -1671,6 +1722,7 @@ export class Lightbox {
   }
 
   private dismissClose(velocityX: number, velocityY: number): void {
+    this.debugLog('dismissClose');
     this.state.isClosing = true;
     this.state.isAnimating = true;
     if (this.overlay) {
@@ -1760,6 +1812,235 @@ export class Lightbox {
       undefined,
       { translateX: velocityX, translateY: velocityY },
     );
+  }
+
+  // ─── Scroll lock ────────────────────────────────────────────
+
+  private lockBodyScroll(): void {
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    this.savedBodyOverflow = document.body.style.overflow;
+    this.savedBodyPaddingRight = document.body.style.paddingRight;
+    document.body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+  }
+
+  private unlockBodyScroll(): void {
+    document.body.style.overflow = this.savedBodyOverflow;
+    document.body.style.paddingRight = this.savedBodyPaddingRight;
+  }
+
+  // ─── Wheel handling ────────────────────────────────────────
+
+  /**
+   * Heuristic: mouse wheels produce deltaMode=1 (lines) or large round values.
+   * Trackpads produce deltaMode=0 (pixels) with small/fractional deltas.
+   */
+  private isMouseWheel(e: WheelEvent): boolean {
+    if (e.deltaMode === 1) return true; // DOM_DELTA_LINE = mouse wheel
+    // Pixel mode: mouse wheels tend to produce multiples of ~100
+    // Trackpads produce smaller, often fractional values
+    const absX = Math.abs(e.deltaX);
+    const absY = Math.abs(e.deltaY);
+    const maxDelta = Math.max(absX, absY);
+    return maxDelta > 0 && maxDelta % 100 === 0;
+  }
+
+  private handleWheel(e: WheelEvent): void {
+    e.preventDefault();
+
+    if (this.state.isClosing || !this.state.isOpen) return;
+
+    // Ignore during active pointer gestures
+    if (this.dismiss.active || this.dismiss.tracking) return;
+    if (this.swipeNav.active) return;
+    if (this.zoom.isDragging) return;
+
+    // Gesture-end detection: fires when wheel events stop.
+    // Resets all wheel accumulator state.
+    if (this.wheelGestureTimer !== null) clearTimeout(this.wheelGestureTimer);
+    this.wheelGestureTimer = setTimeout(() => {
+      this.debugLog('gesture timer → reset wheel state');
+      this.wheelGestureTimer = null;
+      this.wheelDismissY = 0;
+      this.wheelNavCommitted = false;
+      this.wheelNavTotalDelta = 0;
+    }, 80);
+
+    const isMouse = this.isMouseWheel(e);
+
+    if (isMouse) {
+      this.handleMouseWheel(e);
+    } else {
+      this.handleTrackpadScroll(e);
+    }
+  }
+
+  private handleMouseWheel(e: WheelEvent): void {
+    const scrollUp = e.deltaY < 0;
+
+    if (this.zoom.zoomed || this.zoom.scale !== 1) {
+      // Zoomed: mouse wheel zooms in/out further
+      const currentScale = this.zoom.scale;
+      const targetScale = scrollUp
+        ? currentScale * WHEEL_ZOOM_STEP
+        : currentScale / WHEEL_ZOOM_STEP;
+
+      this.wheelZoomTo(targetScale, e.clientX, e.clientY);
+    } else {
+      // Not zoomed: scroll up zooms in at cursor position
+      if (scrollUp && this.isZoomable()) {
+        this.zoomIn(e.clientX, e.clientY);
+      }
+      // Scroll down at scale=1: no-op (already at minimum zoom)
+    }
+  }
+
+  private handleTrackpadScroll(e: WheelEvent): void {
+    const absX = Math.abs(e.deltaX);
+    const absY = Math.abs(e.deltaY);
+
+    if (this.zoom.zoomed || this.zoom.scale !== 1) {
+      // Zoomed: trackpad scroll pans
+      this.wheelPan(e.deltaX, e.deltaY);
+      return;
+    }
+
+    // At fit scale: determine primary axis
+    if (absX > absY && this.gallery.length > 1) {
+      // Horizontal dominant — navigate gallery
+      this.wheelNavigate(e.deltaX);
+    } else if (absY > 0) {
+      // Vertical dominant — dismiss
+      this.wheelDismiss(e.deltaY);
+    }
+  }
+
+  private wheelPan(deltaX: number, deltaY: number): void {
+    this.stopSpring();
+
+    const bounds = this.computePanBounds(this.zoom.scale);
+
+    this.zoom.panX -= deltaX;
+    this.zoom.panY -= deltaY;
+
+    // Rubber-band outside bounds
+    if (this.zoom.panX < bounds.minX) {
+      const over = bounds.minX - this.zoom.panX;
+      this.zoom.panX = bounds.minX - over * RUBBER_BAND_FACTOR;
+    } else if (this.zoom.panX > bounds.maxX) {
+      const over = this.zoom.panX - bounds.maxX;
+      this.zoom.panX = bounds.maxX + over * RUBBER_BAND_FACTOR;
+    }
+    if (this.zoom.panY < bounds.minY) {
+      const over = bounds.minY - this.zoom.panY;
+      this.zoom.panY = bounds.minY - over * RUBBER_BAND_FACTOR;
+    } else if (this.zoom.panY > bounds.maxY) {
+      const over = this.zoom.panY - bounds.maxY;
+      this.zoom.panY = bounds.maxY + over * RUBBER_BAND_FACTOR;
+    }
+
+    this.applyPanTransform();
+
+    // Snap back to bounds after a pause (wheel events come in bursts)
+    this.scheduleWheelSnapBack();
+  }
+
+  private scheduleWheelSnapBack(): void {
+    if (this.wheelSnapBackTimer !== null) clearTimeout(this.wheelSnapBackTimer);
+    this.wheelSnapBackTimer = setTimeout(() => {
+      this.wheelSnapBackTimer = null;
+      if (!this.zoom.zoomed && this.zoom.scale === 1) return;
+
+      const bounds = this.computePanBounds(this.zoom.scale);
+      const needsSnap =
+        this.zoom.panX < bounds.minX ||
+        this.zoom.panX > bounds.maxX ||
+        this.zoom.panY < bounds.minY ||
+        this.zoom.panY > bounds.maxY;
+
+      if (needsSnap) {
+        this.startPanMomentum(0, 0);
+      }
+    }, 100);
+  }
+
+  private wheelZoomTo(targetScale: number, clientX: number, clientY: number): void {
+    if (!this.imgEl) return;
+
+    const maxScale = this.getZoomScale();
+    const newScale = clamp(targetScale, 1, maxScale);
+
+    // If zooming to ~1, zoom out fully
+    if (newScale <= 1.02) {
+      this.zoomOut();
+      return;
+    }
+
+    this.stopSpring();
+
+    // Zoom toward cursor position
+    const { fitRect } = this.zoom;
+    const imgCenterX = fitRect.x + fitRect.width / 2;
+    const imgCenterY = fitRect.y + fitRect.height / 2;
+
+    const oldScale = this.zoom.scale;
+    const scaleRatio = newScale / oldScale;
+
+    // Adjust pan so the point under the cursor stays stationary
+    const cursorRelX = clientX - imgCenterX - this.zoom.panX;
+    const cursorRelY = clientY - imgCenterY - this.zoom.panY;
+    let panX = this.zoom.panX - cursorRelX * (scaleRatio - 1);
+    let panY = this.zoom.panY - cursorRelY * (scaleRatio - 1);
+
+    const bounds = this.computePanBounds(newScale);
+    panX = clamp(panX, bounds.minX, bounds.maxX);
+    panY = clamp(panY, bounds.minY, bounds.maxY);
+
+    this.zoom.scale = newScale;
+    this.zoom.panX = panX;
+    this.zoom.panY = panY;
+
+    if (!this.zoom.zoomed && newScale > 1) {
+      this.zoom.zoomed = true;
+      this.animateChrome(1);
+      this.updateCursorState();
+    }
+
+    this.applyPanTransform();
+  }
+
+  private wheelNavigate(deltaX: number): void {
+    if (this.wheelNavCommitted) return;
+
+    this.wheelNavTotalDelta += deltaX;
+
+    if (Math.abs(this.wheelNavTotalDelta) > WHEEL_NAV_THRESHOLD) {
+      this.wheelNavCommitted = true;
+      const dir = this.wheelNavTotalDelta > 0 ? 'next' : 'prev';
+      this.debugLog(`wheelNav commit → ${dir}`);
+      if (this.wheelNavTotalDelta > 0) {
+        this.next();
+      } else {
+        this.prev();
+      }
+    }
+  }
+
+  private wheelDismiss(deltaY: number): void {
+    // Only dismiss on downward scroll
+    if (deltaY < 0) {
+      this.wheelDismissY = 0;
+      return;
+    }
+
+    this.wheelDismissY += deltaY;
+
+    if (this.wheelDismissY > WHEEL_DISMISS_THRESHOLD) {
+      this.wheelDismissY = 0;
+      this.dismissClose(0, WHEEL_DISMISS_VELOCITY);
+    }
   }
 
   // ─── Swipe-to-navigate ──────────────────────────────────────
@@ -2396,6 +2677,7 @@ export class Lightbox {
     overlay.addEventListener('pointermove', this.handlePointerMove);
     overlay.addEventListener('pointerup', this.handlePointerUp);
     overlay.addEventListener('pointercancel', this.handlePointerUp);
+    overlay.addEventListener('wheel', this.handleWheel, { passive: false });
 
     overlay.appendChild(backdrop);
     overlay.appendChild(strip);
@@ -2652,6 +2934,137 @@ export class Lightbox {
       rect.right > 0 &&
       rect.left < window.innerWidth
     );
+  }
+
+  // ─── Debug panel ────────────────────────────────────────────
+
+  private debugEl: HTMLDivElement | null = null;
+  private debugStateEl: HTMLDivElement | null = null;
+  private debugLogEl: HTMLDivElement | null = null;
+  private debugRafId: number | null = null;
+  private debugLogEntries: string[] = [];
+  private debugT0: number = 0;
+
+  private startDebugPanel(): void {
+    if (!this.opts.debug || this.debugEl) return;
+    this.debugT0 = performance.now();
+    this.debugLogEntries = [];
+
+    // Container: two-column layout
+    const el = document.createElement('div');
+    Object.assign(el.style, {
+      position: 'fixed',
+      top: '8px',
+      left: '8px',
+      zIndex: '9999999',
+      display: 'flex',
+      gap: '8px',
+      fontFamily: 'monospace',
+      fontSize: '11px',
+      lineHeight: '1.5',
+      pointerEvents: 'none',
+    });
+
+    // Left column: live state
+    const stateCol = document.createElement('div');
+    Object.assign(stateCol.style, {
+      background: 'rgba(0,0,0,0.85)',
+      color: '#0f0',
+      padding: '8px 12px',
+      borderRadius: '6px',
+      whiteSpace: 'pre',
+      minWidth: '260px',
+    });
+
+    // Right column: event log
+    const logCol = document.createElement('div');
+    Object.assign(logCol.style, {
+      background: 'rgba(0,0,0,0.85)',
+      color: '#ccc',
+      padding: '8px 12px',
+      borderRadius: '6px',
+      whiteSpace: 'pre',
+      minWidth: '280px',
+      maxHeight: '400px',
+      overflowY: 'auto',
+      pointerEvents: 'auto',
+    });
+    logCol.textContent = '── event log ──────────\n';
+
+    el.appendChild(stateCol);
+    el.appendChild(logCol);
+    document.body.appendChild(el);
+    this.debugEl = el;
+    this.debugStateEl = stateCol;
+    this.debugLogEl = logCol;
+
+    const tick = () => {
+      this.updateDebugPanel();
+      this.debugRafId = requestAnimationFrame(tick);
+    };
+    this.debugRafId = requestAnimationFrame(tick);
+  }
+
+  private stopDebugPanel(): void {
+    if (this.debugRafId !== null) {
+      cancelAnimationFrame(this.debugRafId);
+      this.debugRafId = null;
+    }
+    if (this.debugEl) {
+      this.debugEl.remove();
+      this.debugEl = null;
+      this.debugStateEl = null;
+      this.debugLogEl = null;
+    }
+  }
+
+  private debugLog(msg: string): void {
+    if (!this.debugLogEl) return;
+    const t = ((performance.now() - this.debugT0) / 1000).toFixed(2);
+    const entry = `${t}s  ${msg}`;
+    this.debugLogEntries.push(entry);
+    // Keep last 100 entries
+    if (this.debugLogEntries.length > 100) this.debugLogEntries.shift();
+    this.debugLogEl.textContent =
+      '── event log ──────────\n' + this.debugLogEntries.join('\n');
+    this.debugLogEl.scrollTop = this.debugLogEl.scrollHeight;
+  }
+
+  private updateDebugPanel(): void {
+    if (!this.debugStateEl) return;
+
+    const on = (v: boolean) => (v ? '●' : '○');
+    const px = (v: number) => v.toFixed(1);
+
+    const lines: string[] = [
+      `── state ──────────────`,
+      `isOpen:${on(this.state.isOpen)}  isAnim:${on(this.state.isAnimating)}  isClosing:${on(this.state.isClosing)}`,
+      `gallery: ${this.currentIndex + 1}/${this.gallery.length || 1}`,
+      ``,
+      `── springs ────────────`,
+      `mainRaf:  ${on(this.rafId !== null)}`,
+      `stripRaf: ${on(this.stripRafId !== null)}  offset: ${px(this.stripOffset)}`,
+      `chromeRaf:${on(this.chromeRafId !== null)}`,
+      `pendingNav: ${this.pendingNavDirection ?? 'none'}`,
+      ``,
+      `── zoom ───────────────`,
+      `scale: ${px(this.zoom.scale)}  zoomed:${on(this.zoom.zoomed)}`,
+      `pan: ${px(this.zoom.panX)}, ${px(this.zoom.panY)}`,
+      `dragging:${on(this.zoom.isDragging)}  dragMoved:${on(this.zoom.dragMoved)}`,
+      ``,
+      `── gestures ───────────`,
+      `dismiss: track:${on(this.dismiss.tracking)} active:${on(this.dismiss.active)}`,
+      `swipeNav: ${on(this.swipeNav.active)}`,
+      `pinch: ${on(this.pinch.active)}`,
+      ``,
+      `── wheel nav ──────────`,
+      `committed:${on(this.wheelNavCommitted)}`,
+      `totalDelta: ${px(this.wheelNavTotalDelta)}`,
+      `gestureTimer: ${on(this.wheelGestureTimer !== null)}`,
+      `dismissY: ${px(this.wheelDismissY)}`,
+    ];
+
+    this.debugStateEl.textContent = lines.join('\n');
   }
 }
 

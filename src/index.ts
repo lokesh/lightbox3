@@ -7,7 +7,9 @@ import { Lightbox } from './lightbox';
 
 function autoInit(): void {
   if (!document.querySelector('[data-lightbox]')) return;
-  Lightbox.init();
+  const debug =
+    typeof location !== 'undefined' && new URLSearchParams(location.search).has('debug');
+  Lightbox.init(debug ? { debug: true } : undefined);
 }
 
 if (typeof document !== 'undefined') {
