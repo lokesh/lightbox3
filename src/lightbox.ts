@@ -89,6 +89,7 @@ interface GalleryItem {
   triggerEl: HTMLElement;
   src: string;
   thumbSrc: string;
+  caption: string;
 }
 
 interface SwipeNavState {
@@ -171,6 +172,17 @@ export class Lightbox {
   private isTextLink = false;
   private spinnerEl: HTMLDivElement | null = null;
   private spinnerTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Chrome UI (caption bar, arrows, close button)
+  private chromeBar: HTMLDivElement | null = null;
+  private chromeCounter: HTMLSpanElement | null = null;
+  private chromeCaption: HTMLSpanElement | null = null;
+  private chromeClose: HTMLButtonElement | null = null;
+  private chromePrev: HTMLButtonElement | null = null;
+  private chromeNext: HTMLButtonElement | null = null;
+  private chromeRafId: number | null = null;
+  private chromeSpring: SpringState = { position: 0, velocity: 0 };
+  private chromeBaseOpacity: number = 0;
 
   constructor(opts: LightboxOptions = {}) {
     this.opts = { ...DEFAULTS, ...opts };
@@ -364,6 +376,7 @@ export class Lightbox {
         triggerEl: htmlEl,
         src: this.getSrcFromTrigger(htmlEl),
         thumbSrc: img?.currentSrc || img?.src || '',
+        caption: htmlEl.getAttribute('data-caption') || '',
       };
     });
 
@@ -454,6 +467,7 @@ export class Lightbox {
     const thumbRect = this.getThumbRect(triggerEl);
 
     this.createOverlay(thumbSrc || src);
+    this.createChrome();
     document.addEventListener('keydown', this.handleKeydown);
     this.setThumbVisibility(false);
 
@@ -533,6 +547,7 @@ export class Lightbox {
 
     // Image not ready — show overlay + spinner, load, then morph
     this.createOverlay('');
+    this.createChrome();
     document.addEventListener('keydown', this.handleKeydown);
     if (this.imgEl) this.imgEl.style.opacity = '0';
 
@@ -576,6 +591,7 @@ export class Lightbox {
     // If overlay wasn't created yet (preloaded path), create it now
     if (!this.overlay) {
       this.createOverlay(src);
+      this.createChrome();
       document.addEventListener('keydown', this.handleKeydown);
     } else {
       this.imgEl!.src = src;
@@ -673,6 +689,8 @@ export class Lightbox {
 
     this.state.isClosing = true;
     this.stopSpring();
+    this.stopChromeSpring();
+    this.chromeSpring = { position: 0, velocity: 0 };
     this.state.isAnimating = false;
     this.dismiss = this.defaultDismissState();
 
@@ -753,6 +771,9 @@ export class Lightbox {
 
   private finishClose(): void {
     this.removeSpinner();
+    this.stopChromeSpring();
+    this.chromeSpring = { position: 0, velocity: 0 };
+    this.chromeBaseOpacity = 0;
     this.setThumbVisibility(true);
     this.removeOverlay();
     document.removeEventListener('keydown', this.handleKeydown);
@@ -868,6 +889,9 @@ export class Lightbox {
 
     // Hide new thumbnail
     this.setThumbVisibility(false);
+
+    // Update chrome UI
+    this.updateChromeContent();
 
     // Recycle DOM slots
     this.recycleSlots(direction);
@@ -1093,6 +1117,10 @@ export class Lightbox {
     } else {
       img.style.clipPath = '';
     }
+
+    // Chrome follows backdrop opacity during open/close
+    this.chromeBaseOpacity = state.opacity;
+    this.updateChromeVisuals();
   }
 
   // ─── Strip spring (gallery slide animation) ─────────────────
@@ -1194,6 +1222,7 @@ export class Lightbox {
 
     this.stopSpring();
     this.state.isAnimating = true;
+    this.animateChrome(1);
 
     const { fitRect } = this.zoom;
     const targetScale = this.getZoomScale();
@@ -1275,6 +1304,7 @@ export class Lightbox {
     this.stopSpring();
     this.state.isAnimating = true;
     this.zoom.zoomingOut = true;
+    this.animateChrome(0);
 
     const fromPanX = this.zoom.panX;
     const fromPanY = this.zoom.panY;
@@ -1597,6 +1627,9 @@ export class Lightbox {
     const { offsetX, offsetY, scale } = this.dismiss;
     this.imgEl.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
     this.backdrop.style.opacity = String(this.dismiss.opacity);
+
+    this.chromeBaseOpacity = this.dismiss.opacity;
+    this.updateChromeVisuals();
   }
 
   private handleDismissRelease(): void {
@@ -1858,6 +1891,11 @@ export class Lightbox {
     this.zoom.panX = panX;
     this.zoom.panY = panY;
     this.applyPanTransform();
+
+    // Fade chrome proportionally to zoom level
+    const chromeProgress = Math.min(1, Math.max(0, (newScale - 1) / 0.5));
+    this.chromeSpring = { position: chromeProgress, velocity: 0 };
+    this.updateChromeVisuals();
   }
 
   private endPinch(): void {
@@ -1869,15 +1907,18 @@ export class Lightbox {
     if (this.zoom.scale < 1) {
       // Snap back to 1 (opened state)
       this.springToZoomState(1, 0, 0, SNAP_SPRING, false);
+      this.animateChrome(0);
     } else if (this.zoom.scale > maxScale) {
       // Clamp to max scale, keep pan clamped
       const bounds = this.computePanBounds(maxScale);
       const panX = clamp(this.zoom.panX, bounds.minX, bounds.maxX);
       const panY = clamp(this.zoom.panY, bounds.minY, bounds.maxY);
       this.springToZoomState(maxScale, panX, panY, SNAP_SPRING, true);
+      this.animateChrome(1);
     } else {
       // Valid zoom — clamp pan to bounds and settle
       this.zoom.zoomed = this.zoom.scale > 1;
+      this.animateChrome(this.zoom.scale > 1 ? 1 : 0);
       const bounds = this.computePanBounds(this.zoom.scale);
       const inBoundsX = this.zoom.panX >= bounds.minX && this.zoom.panX <= bounds.maxX;
       const inBoundsY = this.zoom.panY >= bounds.minY && this.zoom.panY <= bounds.maxY;
@@ -2078,6 +2119,180 @@ export class Lightbox {
     }
   }
 
+  // ─── Chrome UI ──────────────────────────────────────────────
+
+  private createChrome(): void {
+    if (!this.overlay) return;
+
+    const isGallery = this.gallery.length > 1;
+    const caption = this.getCurrentCaption();
+    const hasContent = isGallery || !!caption;
+
+    // Bottom pill bar
+    const bar = document.createElement('div');
+    bar.className = 'lightbox3-chrome';
+    if (!hasContent) bar.classList.add('lightbox3-chrome--minimal');
+
+    // Counter (gallery only)
+    const counter = document.createElement('span');
+    counter.className = 'lightbox3-counter';
+    if (isGallery) {
+      counter.textContent = `${this.currentIndex + 1}\u2009/\u2009${this.gallery.length}`;
+    } else {
+      counter.style.display = 'none';
+    }
+    bar.appendChild(counter);
+    this.chromeCounter = counter;
+
+    // Caption
+    const captionEl = document.createElement('span');
+    captionEl.className = 'lightbox3-caption';
+    captionEl.textContent = caption;
+    if (!caption) captionEl.style.display = 'none';
+    bar.appendChild(captionEl);
+    this.chromeCaption = captionEl;
+
+    // Close button
+    const close = document.createElement('button');
+    close.className = 'lightbox3-close';
+    close.setAttribute('aria-label', 'Close');
+    close.type = 'button';
+    close.innerHTML =
+      '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>';
+    close.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.close();
+    });
+    close.addEventListener('pointerdown', (e) => e.stopPropagation());
+    bar.appendChild(close);
+    this.chromeClose = close;
+
+    this.overlay.appendChild(bar);
+    this.chromeBar = bar;
+
+    // Navigation arrows (gallery only)
+    if (isGallery) {
+      const prev = document.createElement('button');
+      prev.className = 'lightbox3-arrow lightbox3-arrow-prev';
+      prev.setAttribute('aria-label', 'Previous image');
+      prev.type = 'button';
+      prev.innerHTML =
+        '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="12,4 6,10 12,16"/></svg>';
+      prev.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.prev();
+      });
+      prev.addEventListener('pointerdown', (e) => e.stopPropagation());
+      this.overlay.appendChild(prev);
+      this.chromePrev = prev;
+
+      const next = document.createElement('button');
+      next.className = 'lightbox3-arrow lightbox3-arrow-next';
+      next.setAttribute('aria-label', 'Next image');
+      next.type = 'button';
+      next.innerHTML =
+        '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="8,4 14,10 8,16"/></svg>';
+      next.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.next();
+      });
+      next.addEventListener('pointerdown', (e) => e.stopPropagation());
+      this.overlay.appendChild(next);
+      this.chromeNext = next;
+
+      this.updateArrowVisibility();
+    }
+  }
+
+  private getCurrentCaption(): string {
+    if (this.gallery.length > 0) {
+      return this.gallery[this.currentIndex]?.caption || '';
+    }
+    return this.state.triggerEl?.getAttribute('data-caption') || '';
+  }
+
+  private updateChromeContent(): void {
+    const caption = this.getCurrentCaption();
+    if (this.chromeCounter) {
+      this.chromeCounter.textContent = `${this.currentIndex + 1}\u2009/\u2009${this.gallery.length}`;
+    }
+    if (this.chromeCaption) {
+      this.chromeCaption.textContent = caption;
+      this.chromeCaption.style.display = caption ? '' : 'none';
+    }
+    this.updateArrowVisibility();
+  }
+
+  private updateArrowVisibility(): void {
+    if (this.chromePrev) {
+      this.chromePrev.style.display = this.currentIndex > 0 ? '' : 'none';
+    }
+    if (this.chromeNext) {
+      this.chromeNext.style.display =
+        this.currentIndex < this.gallery.length - 1 ? '' : 'none';
+    }
+  }
+
+  private animateChrome(target: number): void {
+    this.stopChromeSpring();
+
+    const config = target === 1 ? this.opts.springOpen : this.opts.springClose;
+    let lastTime = performance.now();
+
+    const tick = (now: number) => {
+      const dt = Math.min((now - lastTime) / 1000, 0.064);
+      lastTime = now;
+
+      const result = springStep(config, this.chromeSpring, target, dt);
+      this.chromeSpring = result;
+      this.updateChromeVisuals();
+
+      if (result.settled) {
+        this.chromeRafId = null;
+        return;
+      }
+      this.chromeRafId = requestAnimationFrame(tick);
+    };
+
+    this.chromeRafId = requestAnimationFrame(tick);
+  }
+
+  private updateChromeVisuals(): void {
+    const zoom = this.chromeSpring.position;
+    const opacity = this.chromeBaseOpacity;
+    const interactive = opacity > 0.1 && zoom < 0.5;
+
+    // Slide chrome fully off viewport edges
+    const barY = zoom * 120;
+    const arrowX = zoom * 100;
+
+    if (this.chromeBar) {
+      this.chromeBar.style.opacity = String(opacity);
+      this.chromeBar.style.transform = `translateX(-50%) translateY(${barY}px)`;
+      this.chromeBar.style.pointerEvents = interactive ? '' : 'none';
+    }
+    if (this.chromePrev) {
+      this.chromePrev.style.opacity = String(opacity);
+      this.chromePrev.style.transform = `translateY(-50%) translateX(${-arrowX}px)`;
+      this.chromePrev.style.pointerEvents = interactive ? '' : 'none';
+    }
+    if (this.chromeNext) {
+      this.chromeNext.style.opacity = String(opacity);
+      this.chromeNext.style.transform = `translateY(-50%) translateX(${arrowX}px)`;
+      this.chromeNext.style.pointerEvents = interactive ? '' : 'none';
+    }
+    if (this.chromeClose) {
+      this.chromeClose.style.pointerEvents = interactive ? '' : 'none';
+    }
+  }
+
+  private stopChromeSpring(): void {
+    if (this.chromeRafId !== null) {
+      cancelAnimationFrame(this.chromeRafId);
+      this.chromeRafId = null;
+    }
+  }
+
   // ─── DOM ─────────────────────────────────────────────────────
 
   private createOverlay(src: string): void {
@@ -2215,6 +2430,12 @@ export class Lightbox {
       this.prevSlideImg = null;
       this.nextSlideEl = null;
       this.nextSlideImg = null;
+      this.chromeBar = null;
+      this.chromeCounter = null;
+      this.chromeCaption = null;
+      this.chromeClose = null;
+      this.chromePrev = null;
+      this.chromeNext = null;
     }
   }
 
