@@ -429,6 +429,7 @@ export class Lightbox {
     // If lightbox is open, closing, or animating, clean up then open the new one
     if (this.state.isOpen || this.state.isAnimating || this.state.isClosing) {
       this.stopSpring();
+      this.stopFitTransition();
       this.stopStripSpring();
       this.state.isAnimating = false;
       this.state.isClosing = false;
@@ -611,6 +612,7 @@ export class Lightbox {
     // Load image, then run the FLIP morph
     this.loadImage(src).then((size) => {
       if (!this.imgEl || this.state.currentSrc !== src) return;
+      if (this.state.isClosing || !this.state.isOpen) return;
       this.removeSpinner();
       this.openTextLinkWithImage(triggerEl, src, size.width, size.height);
     });
@@ -691,6 +693,8 @@ export class Lightbox {
   private swapToFullRes(src: string): void {
     this.loadImage(src).then((size) => {
       if (!this.imgEl || this.state.currentSrc !== src) return;
+      // Full-res loaded after close started — don't reposition the image
+      if (this.state.isClosing || !this.state.isOpen) return;
 
       this.imgEl.src = src;
       this.zoom.naturalWidth = size.width;
@@ -798,6 +802,7 @@ export class Lightbox {
 
     this.state.isClosing = true;
     this.stopSpring();
+    this.stopFitTransition();
     this.stopChromeSpring();
     this.chromeSpring = { position: 0, velocity: 0 };
     this.state.isAnimating = false;
@@ -1824,6 +1829,7 @@ export class Lightbox {
     this.debugLog('dismissClose');
     this.state.isClosing = true;
     this.state.isAnimating = true;
+    this.stopFitTransition();
     if (this.overlay) {
       const ov = this.overlay;
       setTimeout(() => {
@@ -2050,6 +2056,7 @@ export class Lightbox {
     if (this.wheelSnapBackTimer !== null) clearTimeout(this.wheelSnapBackTimer);
     this.wheelSnapBackTimer = setTimeout(() => {
       this.wheelSnapBackTimer = null;
+      if (this.state.isClosing || !this.state.isOpen) return;
       if (!this.zoom.zoomed && this.zoom.scale === 1) return;
 
       const bounds = this.computePanBounds(this.zoom.scale);
@@ -2853,6 +2860,7 @@ export class Lightbox {
       if (cached && !cached.complete) {
         const onLoad = () => {
           cached.removeEventListener('load', onLoad);
+          if (this.state.isClosing || !this.state.isOpen) return;
           // Only upgrade if this img is still an adjacent slide (not yet current)
           if (
             (img === this.prevSlideImg || img === this.nextSlideImg) &&

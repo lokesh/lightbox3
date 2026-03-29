@@ -89,6 +89,16 @@ Never use a boolean that is only set on animation *completion* (e.g. `zoomed`) t
 
 Never put essential side-effects (image loading, state transitions) inside an animation's `onComplete` callback. If the animation is interrupted, the callback never fires and the side-effect is lost. Start async work (e.g. full-res image load) immediately and guard the result with a check that the lightbox is still showing the relevant content.
 
+### Async callbacks must guard against closed/closing state
+
+Image loads (`.then()`, `addEventListener('load', …)`), timers (`setTimeout`), and other deferred work can resolve after the user has started closing or already closed the lightbox. Every async callback that touches DOM elements or modifies lightbox state must bail out early if the lightbox is no longer active:
+
+```ts
+if (this.state.isClosing || !this.state.isOpen) return;
+```
+
+Without this, a late-arriving image load can reposition/resize the image mid-close, causing visual glitches. The `currentSrc` check alone is not sufficient — it stays valid throughout the close animation.
+
 ### Spring long tail
 
 Springs settle mathematically long after they are visually done — position and velocity creep toward zero but take many extra frames to cross the threshold. Never wait for full settlement to perform DOM cleanup or state transitions that the user can perceive.

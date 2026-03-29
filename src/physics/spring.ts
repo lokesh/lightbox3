@@ -15,8 +15,8 @@ export interface SpringStepResult extends SpringState {
 
 const POSITION_THRESHOLD = 0.01;
 const VELOCITY_THRESHOLD = 0.01;
-const MAX_DT = 0.05;
-const SUB_STEP_DT = 0.016;
+const MAX_DT = 0.02;
+const SUB_STEP_DT = 0.008;
 
 export function springStep(
   config: SpringConfig,
