@@ -74,15 +74,28 @@ interface VelocitySample {
 }
 
 interface DismissState {
-  tracking: boolean;      // Pointer down at scale=1, waiting to determine axis
-  active: boolean;        // Vertical axis confirmed, dismiss gesture in progress
-  fromOverlay: boolean;   // Gesture started on overlay (not image) — tap should close
+  tracking: boolean; // Pointer down at scale=1, waiting to determine axis
+  active: boolean; // Vertical axis confirmed, dismiss gesture in progress
+  fromOverlay: boolean; // Gesture started on overlay (not image) — tap should close
   startX: number;
   startY: number;
   offsetX: number;
   offsetY: number;
   scale: number;
   opacity: number;
+}
+
+interface GalleryItem {
+  triggerEl: HTMLElement;
+  src: string;
+  thumbSrc: string;
+}
+
+interface SwipeNavState {
+  active: boolean;
+  startX: number;
+  offsetX: number;
+  initialOffset: number; // Strip offset when swipe started (for interrupted springs)
 }
 
 const PRELOAD_DELAY = 80;
@@ -92,6 +105,9 @@ const VELOCITY_WINDOW = 80;
 const PAN_SPRING: SpringConfig = { stiffness: 170, damping: 26, mass: 1 };
 const SNAP_SPRING: SpringConfig = { stiffness: 300, damping: 30, mass: 1 };
 const PINCH_RUBBER_BAND_FACTOR = 0.4;
+const SLIDE_GAP = 16;
+const SWIPE_VELOCITY_THRESHOLD = 300;
+const SWIPE_DISTANCE_THRESHOLD = 0.3;
 
 export class Lightbox {
   private opts: Required<LightboxOptions>;
@@ -110,9 +126,29 @@ export class Lightbox {
   private backdrop: HTMLDivElement | null = null;
   private imgEl: HTMLImageElement | null = null;
 
+  // Strip DOM (gallery slide container)
+  private stripEl: HTMLDivElement | null = null;
+  private currentSlideEl: HTMLDivElement | null = null;
+  private prevSlideEl: HTMLDivElement | null = null;
+  private prevSlideImg: HTMLImageElement | null = null;
+  private nextSlideEl: HTMLDivElement | null = null;
+  private nextSlideImg: HTMLImageElement | null = null;
+
+  // Gallery
+  private gallery: GalleryItem[] = [];
+  private currentIndex: number = 0;
+  private userHasNavigated: boolean = false;
+
+  // Strip animation
+  private stripRafId: number | null = null;
+  private stripOffset: number = 0;
+  private swipeNav: SwipeNavState = this.defaultSwipeNavState();
+
   // Preload
   private preloadCache = new Map<string, HTMLImageElement>();
   private preloadTimer: ReturnType<typeof setTimeout> | null = null;
+  private preloadQueue: string[] = [];
+  private preloadingActive: boolean = false;
 
   // Velocity tracking
   private velocitySamples: VelocitySample[] = [];
@@ -167,6 +203,7 @@ export class Lightbox {
     document.removeEventListener('pointerleave', this.handlePointerLeave, true);
     this.cancelPreload();
     this.stopSpring();
+    this.stopStripSpring();
     this.removeOverlay();
   }
 
@@ -215,6 +252,15 @@ export class Lightbox {
     };
   }
 
+  private defaultSwipeNavState(): SwipeNavState {
+    return {
+      active: false,
+      startX: 0,
+      offsetX: 0,
+      initialOffset: 0,
+    };
+  }
+
   // ─── Preloading ────────────────────────────────────────────
 
   private handlePointerEnter(e: PointerEvent): void {
@@ -249,6 +295,82 @@ export class Lightbox {
     this.preloadCache.set(src, img);
   }
 
+  // ─── Gallery preloading ─────────────────────────────────────
+
+  private schedulePreloads(): void {
+    // Tier 1: always preload immediate neighbors
+    if (this.currentIndex > 0) {
+      this.preloadImage(this.gallery[this.currentIndex - 1].src);
+    }
+    if (this.currentIndex < this.gallery.length - 1) {
+      this.preloadImage(this.gallery[this.currentIndex + 1].src);
+    }
+
+    // Tier 2+: after first navigation, preload remaining in travel direction
+    if (this.userHasNavigated) {
+      this.enqueueRemainingPreloads();
+    }
+  }
+
+  private enqueueRemainingPreloads(): void {
+    // Build queue outward from current position
+    const queue: string[] = [];
+    for (let offset = 2; offset < this.gallery.length; offset++) {
+      const fwd = this.currentIndex + offset;
+      const bwd = this.currentIndex - offset;
+      if (fwd < this.gallery.length) queue.push(this.gallery[fwd].src);
+      if (bwd >= 0) queue.push(this.gallery[bwd].src);
+    }
+    this.preloadQueue = queue.filter((src) => !this.preloadCache.has(src));
+    this.processPreloadQueue();
+  }
+
+  private processPreloadQueue(): void {
+    if (this.preloadingActive || this.preloadQueue.length === 0) return;
+    const src = this.preloadQueue.shift()!;
+    if (this.preloadCache.has(src)) {
+      this.processPreloadQueue();
+      return;
+    }
+    this.preloadingActive = true;
+    const img = new Image();
+    img.onload = img.onerror = () => {
+      this.preloadingActive = false;
+      this.processPreloadQueue();
+    };
+    img.src = src;
+    this.preloadCache.set(src, img);
+  }
+
+  // ─── Gallery ────────────────────────────────────────────────
+
+  private buildGallery(triggerEl: HTMLElement): void {
+    const galleryName = triggerEl.getAttribute('data-lightbox');
+
+    // No value or empty → standalone, no gallery
+    if (!galleryName) {
+      this.gallery = [];
+      this.currentIndex = 0;
+      return;
+    }
+
+    // Find all siblings with same gallery name, in DOM order
+    const elements = document.querySelectorAll(`[data-lightbox="${CSS.escape(galleryName)}"]`);
+    this.gallery = Array.from(elements).map((el) => {
+      const htmlEl = el as HTMLElement;
+      const img = htmlEl.querySelector('img') as HTMLImageElement | null;
+      return {
+        triggerEl: htmlEl,
+        src: this.getSrcFromTrigger(htmlEl),
+        thumbSrc: img?.currentSrc || img?.src || '',
+      };
+    });
+
+    this.currentIndex = this.gallery.findIndex((item) => item.triggerEl === triggerEl);
+    if (this.currentIndex === -1) this.currentIndex = 0;
+    this.userHasNavigated = false;
+  }
+
   // ─── Event Handlers ──────────────────────────────────────────
 
   private handleClick(e: MouseEvent): void {
@@ -261,13 +383,13 @@ export class Lightbox {
     // If lightbox is open, closing, or animating, clean up then open the new one
     if (this.state.isOpen || this.state.isAnimating || this.state.isClosing) {
       this.stopSpring();
+      this.stopStripSpring();
       this.state.isAnimating = false;
       this.state.isClosing = false;
       this.finishClose();
-      this.open(trigger, src);
-      return;
     }
 
+    this.buildGallery(trigger);
     this.open(trigger, src);
   }
 
@@ -286,6 +408,14 @@ export class Lightbox {
         this.zoomOut();
       } else {
         this.close();
+      }
+    } else if (e.key === 'ArrowRight') {
+      if (this.zoom.scale === 1 && !this.swipeNav.active) {
+        this.next();
+      }
+    } else if (e.key === 'ArrowLeft') {
+      if (this.zoom.scale === 1 && !this.swipeNav.active) {
+        this.prev();
       }
     }
   }
@@ -353,17 +483,26 @@ export class Lightbox {
     const scaleX = thumbRect.width / targetRect.width;
     const scaleY = thumbRect.height / targetRect.height;
     const flipScale = Math.min(scaleX, scaleY);
-    const flipX = (thumbRect.x + thumbRect.width / 2) - (targetRect.x + targetRect.width / 2);
-    const flipY = (thumbRect.y + thumbRect.height / 2) - (targetRect.y + targetRect.height / 2);
+    const flipX = thumbRect.x + thumbRect.width / 2 - (targetRect.x + targetRect.width / 2);
+    const flipY = thumbRect.y + thumbRect.height / 2 - (targetRect.y + targetRect.height / 2);
 
     // Compute crop insets for object-fit:cover thumbnails
     this.cropInsets = this.computeCropInsets(triggerEl, thumbRect, targetRect);
-    const hasCrop = this.cropInsets.top + this.cropInsets.right +
-                    this.cropInsets.bottom + this.cropInsets.left > 0;
+    const hasCrop =
+      this.cropInsets.top + this.cropInsets.right + this.cropInsets.bottom + this.cropInsets.left >
+      0;
 
     // Start full-res load immediately so it continues regardless of animation interrupts
     if (thumbSrc && thumbSrc !== src) {
       this.swapToFullRes(src);
+    }
+
+    // Populate adjacent gallery slides (off-screen, ready for swipe)
+    this.populateAdjacentSlides();
+
+    // Preload neighbor images
+    if (this.gallery.length > 1) {
+      this.schedulePreloads();
     }
 
     // Start spring from FLIP position → identity.
@@ -425,7 +564,10 @@ export class Lightbox {
 
   /** Run the FLIP morph for a text-link trigger once image dimensions are known. */
   private openTextLinkWithImage(
-    triggerEl: HTMLElement, src: string, natW: number, natH: number,
+    triggerEl: HTMLElement,
+    src: string,
+    natW: number,
+    natH: number,
   ): void {
     const thumbRect = this.getThumbRect(triggerEl);
     const targetRect = this.computeTargetRect(natW, natH);
@@ -447,13 +589,13 @@ export class Lightbox {
 
     // Build a FLIP origin rect centered on the text link but with the image's
     // aspect ratio, so the morph scales uniformly instead of stretching.
-    const textLinkRect = this.textLinkFlipRect(thumbRect, natW, natH);
+    const flipRect = this.textLinkFlipRect(thumbRect, natW, natH);
 
-    const scaleX = textLinkRect.width / targetRect.width;
-    const scaleY = textLinkRect.height / targetRect.height;
+    const scaleX = flipRect.width / targetRect.width;
+    const scaleY = flipRect.height / targetRect.height;
     const flipScale = Math.min(scaleX, scaleY);
-    const flipX = (textLinkRect.x + textLinkRect.width / 2) - (targetRect.x + targetRect.width / 2);
-    const flipY = (textLinkRect.y + textLinkRect.height / 2) - (targetRect.y + targetRect.height / 2);
+    const flipX = flipRect.x + flipRect.width / 2 - (targetRect.x + targetRect.width / 2);
+    const flipY = flipRect.y + flipRect.height / 2 - (targetRect.y + targetRect.height / 2);
 
     this.animateSpring(
       { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: 0 },
@@ -471,9 +613,7 @@ export class Lightbox {
    * Build a rect centered on the text link with the image's aspect ratio.
    * Sized so the shorter dimension matches the text link's height.
    */
-  private textLinkFlipRect(
-    linkRect: DOMRect, natW: number, natH: number,
-  ): DOMRect {
+  private textLinkFlipRect(linkRect: DOMRect, natW: number, natH: number): DOMRect {
     const aspect = natW / natH;
     const h = linkRect.height;
     const w = h * aspect;
@@ -524,6 +664,12 @@ export class Lightbox {
       return;
     }
 
+    // Stop any strip animation and reset
+    this.stopStripSpring();
+    this.stripOffset = 0;
+    if (this.stripEl) this.stripEl.style.transform = '';
+    this.swipeNav = this.defaultSwipeNavState();
+
     this.state.isClosing = true;
     this.stopSpring();
     this.state.isAnimating = false;
@@ -534,7 +680,9 @@ export class Lightbox {
     // dispatch after pointerup (which can arrive after rAF on mobile Safari).
     if (this.overlay) {
       const ov = this.overlay;
-      setTimeout(() => { ov.style.pointerEvents = 'none'; }, 80);
+      setTimeout(() => {
+        ov.style.pointerEvents = 'none';
+      }, 80);
     }
 
     // If zoomed (idle or mid-animation), reset zoom first then close
@@ -549,9 +697,7 @@ export class Lightbox {
 
     this.state.isAnimating = true;
 
-    const thumbRect = this.state.triggerEl
-      ? this.getThumbRect(this.state.triggerEl)
-      : null;
+    const thumbRect = this.state.triggerEl ? this.getThumbRect(this.state.triggerEl) : null;
 
     const closeWhenInvisible = (s: AnimState) => s.opacity < 0.01;
 
@@ -577,16 +723,23 @@ export class Lightbox {
     const scaleX = morphRect.width / fitRect.width;
     const scaleY = morphRect.height / fitRect.height;
     const flipScale = Math.min(scaleX, scaleY);
-    const flipX = (morphRect.x + morphRect.width / 2) - (fitRect.x + fitRect.width / 2);
-    const flipY = (morphRect.y + morphRect.height / 2) - (fitRect.y + fitRect.height / 2);
+    const flipX = morphRect.x + morphRect.width / 2 - (fitRect.x + fitRect.width / 2);
+    const flipY = morphRect.y + morphRect.height / 2 - (fitRect.y + fitRect.height / 2);
 
     // Recompute crop insets for close (thumb may have moved since open)
     // Text links never have crop insets.
-    const hasCrop = this.isTextLink ? false : (() => {
-      this.cropInsets = this.computeCropInsets(this.state.triggerEl!, thumbRect, fitRect);
-      return this.cropInsets.top + this.cropInsets.right +
-             this.cropInsets.bottom + this.cropInsets.left > 0;
-    })();
+    const hasCrop = this.isTextLink
+      ? false
+      : (() => {
+          this.cropInsets = this.computeCropInsets(this.state.triggerEl!, thumbRect, fitRect);
+          return (
+            this.cropInsets.top +
+              this.cropInsets.right +
+              this.cropInsets.bottom +
+              this.cropInsets.left >
+            0
+          );
+        })();
 
     this.animateSpring(
       { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
@@ -596,7 +749,6 @@ export class Lightbox {
       closeWhenInvisible,
     );
   }
-
 
   private finishClose(): void {
     this.removeSpinner();
@@ -616,6 +768,13 @@ export class Lightbox {
     this.pointerCache = [];
     this.pinch = this.defaultPinchState();
     this.dismiss = this.defaultDismissState();
+    this.swipeNav = this.defaultSwipeNavState();
+    this.gallery = [];
+    this.currentIndex = 0;
+    this.userHasNavigated = false;
+    this.stripOffset = 0;
+    this.preloadQueue = [];
+    this.preloadingActive = false;
   }
 
   /**
@@ -657,6 +816,172 @@ export class Lightbox {
     this.bounceRafId = requestAnimationFrame(tick);
   }
 
+  // ─── Gallery navigation ────────────────────────────────────
+
+  next(): void {
+    if (this.gallery.length <= 1) return;
+    if (this.currentIndex >= this.gallery.length - 1) return;
+    if (this.zoom.scale !== 1) return;
+    this.navigateTo(1);
+  }
+
+  prev(): void {
+    if (this.gallery.length <= 1) return;
+    if (this.currentIndex <= 0) return;
+    if (this.zoom.scale !== 1) return;
+    this.navigateTo(-1);
+  }
+
+  private navigateTo(direction: 1 | -1): void {
+    this.userHasNavigated = true;
+
+    const slideWidth = window.innerWidth + SLIDE_GAP;
+    const targetX = -direction * slideWidth;
+
+    this.animateStrip(this.stripOffset, targetX, this.opts.springOpen, 0, () =>
+      this.completeNavigation(direction),
+    );
+  }
+
+  private completeNavigation(direction: 1 | -1): void {
+    // Show old thumbnail
+    this.setThumbVisibility(true);
+
+    // Update index and trigger
+    this.currentIndex += direction;
+    const item = this.gallery[this.currentIndex];
+    this.state.triggerEl = item.triggerEl;
+    this.state.currentSrc = item.src;
+
+    // Hide new thumbnail
+    this.setThumbVisibility(false);
+
+    // Recycle DOM slots
+    this.recycleSlots(direction);
+
+    // Reset strip
+    this.stripOffset = 0;
+    if (this.stripEl) this.stripEl.style.transform = '';
+
+    // Set up new current image (zoom state, full-res swap)
+    this.setupCurrentImage();
+
+    // Preload more images
+    this.schedulePreloads();
+  }
+
+  /**
+   * After strip animation completes, reposition slide elements so the new
+   * current image is at left:0. Remove the old far slide, create a new one
+   * at the opposite edge.
+   */
+  private recycleSlots(direction: 1 | -1): void {
+    const slideWidth = window.innerWidth + SLIDE_GAP;
+
+    if (direction === 1) {
+      // Forward: prev is removed, current→prev, next→current, create new next
+      if (this.prevSlideEl) this.prevSlideEl.remove();
+
+      this.prevSlideEl = this.currentSlideEl;
+      this.prevSlideImg = this.imgEl;
+      if (this.prevSlideEl) {
+        this.prevSlideEl.style.left = `${-slideWidth}px`;
+        this.prevSlideEl.style.pointerEvents = 'none';
+      }
+
+      this.currentSlideEl = this.nextSlideEl;
+      this.imgEl = this.nextSlideImg;
+      if (this.currentSlideEl) {
+        this.currentSlideEl.style.left = '0';
+        this.currentSlideEl.style.pointerEvents = 'auto';
+      }
+
+      this.nextSlideEl = null;
+      this.nextSlideImg = null;
+      if (this.currentIndex < this.gallery.length - 1) {
+        this.createAdjacentSlide(this.currentIndex + 1, slideWidth);
+      }
+    } else {
+      // Backward: next is removed, current→next, prev→current, create new prev
+      if (this.nextSlideEl) this.nextSlideEl.remove();
+
+      this.nextSlideEl = this.currentSlideEl;
+      this.nextSlideImg = this.imgEl;
+      if (this.nextSlideEl) {
+        this.nextSlideEl.style.left = `${slideWidth}px`;
+        this.nextSlideEl.style.pointerEvents = 'none';
+      }
+
+      this.currentSlideEl = this.prevSlideEl;
+      this.imgEl = this.prevSlideImg;
+      if (this.currentSlideEl) {
+        this.currentSlideEl.style.left = '0';
+        this.currentSlideEl.style.pointerEvents = 'auto';
+      }
+
+      this.prevSlideEl = null;
+      this.prevSlideImg = null;
+      if (this.currentIndex > 0) {
+        this.createAdjacentSlide(this.currentIndex - 1, -slideWidth);
+      }
+    }
+  }
+
+  /** Set up zoom state and image src for the newly-centered current image. */
+  private setupCurrentImage(): void {
+    this.zoom = this.defaultZoomState();
+
+    const item = this.gallery[this.currentIndex];
+    if (!item || !this.imgEl) return;
+
+    const cached = this.preloadCache.get(item.src);
+    const fullResReady = cached?.complete && cached.naturalWidth > 0;
+
+    if (fullResReady) {
+      this.zoom.naturalWidth = cached!.naturalWidth;
+      this.zoom.naturalHeight = cached!.naturalHeight;
+      this.zoom.fitRect = this.computeTargetRect(cached!.naturalWidth, cached!.naturalHeight);
+      this.imgEl.src = item.src;
+      this.positionImage(this.zoom.fitRect);
+    } else {
+      const thumbImg = item.triggerEl.querySelector('img') as HTMLImageElement | null;
+      const natW = thumbImg?.naturalWidth || 400;
+      const natH = thumbImg?.naturalHeight || 300;
+      this.zoom.naturalWidth = natW;
+      this.zoom.naturalHeight = natH;
+      this.zoom.fitRect = this.computeTargetRectFromAspectRatio(natW, natH);
+      this.positionImage(this.zoom.fitRect);
+      this.swapToFullRes(item.src);
+    }
+
+    this.updateCursorState();
+  }
+
+  /**
+   * If a strip spring is running (from a flick or arrow key), resolve it so
+   * the user can start a new gesture from a clean state.
+   */
+  private resolveStripAnimation(): void {
+    if (this.stripRafId === null) return;
+    this.stopStripSpring();
+
+    const slideWidth = window.innerWidth + SLIDE_GAP;
+    if (Math.abs(this.stripOffset) > slideWidth / 2) {
+      // Past halfway — complete the navigation
+      const direction = (this.stripOffset < 0 ? 1 : -1) as 1 | -1;
+      const newIndex = this.currentIndex + direction;
+      if (newIndex >= 0 && newIndex < this.gallery.length) {
+        // Adjust offset to preserve visual positions after recycling
+        this.stripOffset += direction * slideWidth;
+        this.completeNavigation(direction);
+        // completeNavigation resets stripOffset to 0, but we adjusted it above
+        // so the visual position is preserved. Re-apply the adjusted offset.
+      }
+    }
+    // stripOffset is now close to 0 (or exactly 0 after completeNavigation)
+    this.applyStripOffset(this.stripOffset);
+  }
+
   // ─── Spring animation engine (rAF) ──────────────────────────
 
   private animateSpring(
@@ -678,11 +1003,31 @@ export class Lightbox {
       state: SpringState;
       target: number;
     }[] = [
-      { key: 'translateX', state: { position: from.translateX, velocity: initialVelocities?.translateX ?? 0 }, target: to.translateX },
-      { key: 'translateY', state: { position: from.translateY, velocity: initialVelocities?.translateY ?? 0 }, target: to.translateY },
-      { key: 'scale', state: { position: from.scale, velocity: initialVelocities?.scale ?? 0 }, target: to.scale },
-      { key: 'opacity', state: { position: from.opacity, velocity: initialVelocities?.opacity ?? 0 }, target: to.opacity },
-      { key: 'crop', state: { position: from.crop, velocity: initialVelocities?.crop ?? 0 }, target: to.crop },
+      {
+        key: 'translateX',
+        state: { position: from.translateX, velocity: initialVelocities?.translateX ?? 0 },
+        target: to.translateX,
+      },
+      {
+        key: 'translateY',
+        state: { position: from.translateY, velocity: initialVelocities?.translateY ?? 0 },
+        target: to.translateY,
+      },
+      {
+        key: 'scale',
+        state: { position: from.scale, velocity: initialVelocities?.scale ?? 0 },
+        target: to.scale,
+      },
+      {
+        key: 'opacity',
+        state: { position: from.opacity, velocity: initialVelocities?.opacity ?? 0 },
+        target: to.opacity,
+      },
+      {
+        key: 'crop',
+        state: { position: from.crop, velocity: initialVelocities?.crop ?? 0 },
+        target: to.crop,
+      },
     ];
 
     let lastTime = performance.now();
@@ -721,11 +1066,7 @@ export class Lightbox {
     this.rafId = requestAnimationFrame(tick);
   }
 
-  private applyAnimState(
-    img: HTMLImageElement,
-    backdrop: HTMLDivElement,
-    state: AnimState,
-  ): void {
+  private applyAnimState(img: HTMLImageElement, backdrop: HTMLDivElement, state: AnimState): void {
     img.style.transform = `translate(${state.translateX}px, ${state.translateY}px) scale(${state.scale})`;
     backdrop.style.opacity = String(state.opacity);
 
@@ -738,6 +1079,55 @@ export class Lightbox {
       img.style.clipPath = `inset(${state.crop * top}px ${state.crop * right}px ${state.crop * bottom}px ${state.crop * left}px)`;
     } else {
       img.style.clipPath = '';
+    }
+  }
+
+  // ─── Strip spring (gallery slide animation) ─────────────────
+
+  private animateStrip(
+    fromX: number,
+    toX: number,
+    config: SpringConfig,
+    velocity: number,
+    onComplete: () => void,
+  ): void {
+    this.stopStripSpring();
+
+    let spring: SpringState = { position: fromX, velocity };
+    let lastTime = performance.now();
+
+    const tick = (now: number) => {
+      const dt = Math.min((now - lastTime) / 1000, 0.064);
+      lastTime = now;
+
+      const result = springStep(config, spring, toX, dt);
+      spring = result;
+
+      this.stripOffset = result.position;
+      this.applyStripOffset(result.position);
+
+      if (result.settled) {
+        this.stripRafId = null;
+        onComplete();
+        return;
+      }
+
+      this.stripRafId = requestAnimationFrame(tick);
+    };
+
+    this.stripRafId = requestAnimationFrame(tick);
+  }
+
+  private stopStripSpring(): void {
+    if (this.stripRafId !== null) {
+      cancelAnimationFrame(this.stripRafId);
+      this.stripRafId = null;
+    }
+  }
+
+  private applyStripOffset(offset: number): void {
+    if (this.stripEl) {
+      this.stripEl.style.transform = offset ? `translateX(${offset}px)` : '';
     }
   }
 
@@ -796,7 +1186,9 @@ export class Lightbox {
       const rY = springStep(config, sY, panY, dt);
       const rS = springStep(config, sScale, targetScale, dt);
 
-      sX = rX; sY = rY; sScale = rS;
+      sX = rX;
+      sY = rY;
+      sScale = rS;
 
       this.zoom.panX = rX.position;
       this.zoom.panY = rY.position;
@@ -861,7 +1253,9 @@ export class Lightbox {
       const rY = springStep(config, sY, 0, dt);
       const rS = springStep(config, sScale, 1, dt);
 
-      sX = rX; sY = rY; sScale = rS;
+      sX = rX;
+      sY = rY;
+      sScale = rS;
 
       this.zoom.panX = rX.position;
       this.zoom.panY = rY.position;
@@ -869,10 +1263,12 @@ export class Lightbox {
       this.applyPanTransform();
 
       // Update state as soon as visually settled — don't wait for spring tail
-      if (!madeInteractive &&
-          Math.abs(rS.position - 1) < VISUAL_THRESHOLD &&
-          Math.abs(rX.position) < 1 &&
-          Math.abs(rY.position) < 1) {
+      if (
+        !madeInteractive &&
+        Math.abs(rS.position - 1) < VISUAL_THRESHOLD &&
+        Math.abs(rX.position) < 1 &&
+        Math.abs(rY.position) < 1
+      ) {
         madeInteractive = true;
         this.zoom.zoomed = false;
         this.zoom.zoomingOut = false;
@@ -917,11 +1313,14 @@ export class Lightbox {
       return;
     }
 
-    // Single pointer at fit scale — track for potential swipe-to-dismiss.
+    // Single pointer at fit scale — track for potential swipe-to-dismiss or swipe-to-navigate.
     // Block during open animation (isAnimating=true) — the image is mid-FLIP
     // and freezing it would leave a partial-open state. Snap-back doesn't set
     // isAnimating, so it stays interruptible.
     if (this.zoom.scale <= 1 && !this.state.isAnimating) {
+      // Resolve any in-progress strip animation
+      this.resolveStripAnimation();
+
       // Cancel any in-progress animation (e.g. snap-back) — user is grabbing it
       this.stopSpring();
       this.state.isAnimating = false;
@@ -963,6 +1362,9 @@ export class Lightbox {
     // Capture on the overlay so move/up events are delivered here
     this.overlay!.setPointerCapture(e.pointerId);
 
+    // Resolve any in-progress strip animation
+    this.resolveStripAnimation();
+
     this.stopSpring();
     this.state.isAnimating = false;
     this.dismiss.tracking = true;
@@ -977,12 +1379,18 @@ export class Lightbox {
     if (!this.imgEl) return;
 
     // Update pointer in cache
-    const idx = this.pointerCache.findIndex(p => p.pointerId === e.pointerId);
+    const idx = this.pointerCache.findIndex((p) => p.pointerId === e.pointerId);
     if (idx >= 0) this.pointerCache[idx] = e;
 
     // Pinch active — handle two-finger zoom+pan
     if (this.pinch.active && this.pointerCache.length === 2) {
       this.updatePinch();
+      return;
+    }
+
+    // Swipe-to-navigate (horizontal drag at scale=1)
+    if (this.swipeNav.active) {
+      this.handleSwipeNavMove(e);
       return;
     }
 
@@ -1018,7 +1426,7 @@ export class Lightbox {
 
   private handlePointerUp(e: PointerEvent): void {
     // Remove from pointer cache
-    this.pointerCache = this.pointerCache.filter(p => p.pointerId !== e.pointerId);
+    this.pointerCache = this.pointerCache.filter((p) => p.pointerId !== e.pointerId);
 
     try {
       (e.target as HTMLElement).releasePointerCapture(e.pointerId);
@@ -1031,6 +1439,12 @@ export class Lightbox {
       if (this.pointerCache.length < 2) {
         this.endPinch();
       }
+      return;
+    }
+
+    // Swipe-to-navigate release
+    if (this.swipeNav.active) {
+      this.handleSwipeNavRelease();
       return;
     }
 
@@ -1096,9 +1510,22 @@ export class Lightbox {
         this.dismiss.active = true;
         this.dismiss.tracking = false;
         this.zoom.dragMoved = true; // Suppress the click that follows pointerup
+
+        // Snap strip back if it was at a non-zero offset from an interrupted animation
+        if (this.stripOffset !== 0) {
+          this.stripOffset = 0;
+          this.applyStripOffset(0);
+        }
       } else {
-        // Horizontal — cancel dismiss tracking
-        this.dismiss = this.defaultDismissState();
+        // Horizontal — start swipe-to-navigate if in a gallery
+        if (this.gallery.length > 1) {
+          const startX = this.dismiss.startX;
+          this.dismiss = this.defaultDismissState();
+          this.zoom.dragMoved = true; // Suppress the click
+          this.startSwipeNav(startX, e.clientX);
+        } else {
+          this.dismiss = this.defaultDismissState();
+        }
         return;
       }
     }
@@ -1157,15 +1584,15 @@ export class Lightbox {
     this.state.isAnimating = true;
     if (this.overlay) {
       const ov = this.overlay;
-      setTimeout(() => { ov.style.pointerEvents = 'none'; }, 80);
+      setTimeout(() => {
+        ov.style.pointerEvents = 'none';
+      }, 80);
     }
 
     const { offsetX, offsetY, scale, opacity } = this.dismiss;
     this.dismiss = this.defaultDismissState();
 
-    const thumbRect = this.state.triggerEl
-      ? this.getThumbRect(this.state.triggerEl)
-      : null;
+    const thumbRect = this.state.triggerEl ? this.getThumbRect(this.state.triggerEl) : null;
 
     // Off-screen thumbnails — fade out in place
     if (!thumbRect || !this.isInViewport(thumbRect)) {
@@ -1189,14 +1616,21 @@ export class Lightbox {
     const scaleX = morphRect.width / fitRect.width;
     const scaleY = morphRect.height / fitRect.height;
     const flipScale = Math.min(scaleX, scaleY);
-    const flipX = (morphRect.x + morphRect.width / 2) - (fitRect.x + fitRect.width / 2);
-    const flipY = (morphRect.y + morphRect.height / 2) - (fitRect.y + fitRect.height / 2);
+    const flipX = morphRect.x + morphRect.width / 2 - (fitRect.x + fitRect.width / 2);
+    const flipY = morphRect.y + morphRect.height / 2 - (fitRect.y + fitRect.height / 2);
 
-    const hasCrop = this.isTextLink ? false : (() => {
-      this.cropInsets = this.computeCropInsets(this.state.triggerEl!, thumbRect, fitRect);
-      return this.cropInsets.top + this.cropInsets.right +
-             this.cropInsets.bottom + this.cropInsets.left > 0;
-    })();
+    const hasCrop = this.isTextLink
+      ? false
+      : (() => {
+          this.cropInsets = this.computeCropInsets(this.state.triggerEl!, thumbRect, fitRect);
+          return (
+            this.cropInsets.top +
+              this.cropInsets.right +
+              this.cropInsets.bottom +
+              this.cropInsets.left >
+            0
+          );
+        })();
 
     // Clean up as soon as the image is visually at the thumbnail — the swap
     // from animated image → real thumbnail is imperceptible at this point.
@@ -1235,6 +1669,82 @@ export class Lightbox {
       undefined,
       { translateX: velocityX, translateY: velocityY },
     );
+  }
+
+  // ─── Swipe-to-navigate ──────────────────────────────────────
+
+  private startSwipeNav(startX: number, currentX: number): void {
+    const initialOffset = this.stripOffset;
+    this.swipeNav = {
+      active: true,
+      startX,
+      offsetX: initialOffset + (currentX - startX),
+      initialOffset,
+    };
+    this.applyStripOffset(this.swipeNav.offsetX);
+    this.stripOffset = this.swipeNav.offsetX;
+  }
+
+  private handleSwipeNavMove(e: PointerEvent): void {
+    const dx = e.clientX - this.swipeNav.startX;
+    let offset = this.swipeNav.initialOffset + dx;
+
+    // Rubber-band at gallery edges
+    const atStart = this.currentIndex === 0;
+    const atEnd = this.currentIndex === this.gallery.length - 1;
+
+    if (atStart && offset > 0) {
+      offset = offset * RUBBER_BAND_FACTOR;
+    }
+    if (atEnd && offset < 0) {
+      offset = offset * RUBBER_BAND_FACTOR;
+    }
+
+    this.swipeNav.offsetX = offset;
+    this.stripOffset = offset;
+    this.addVelocitySample(e.clientX, e.clientY);
+    this.applyStripOffset(offset);
+  }
+
+  private handleSwipeNavRelease(): void {
+    const { vx } = this.computeVelocity();
+    const offset = this.swipeNav.offsetX;
+
+    // Reset swipe nav state immediately — spring animation is just visual follow-through
+    this.swipeNav = this.defaultSwipeNavState();
+
+    const slideWidth = window.innerWidth + SLIDE_GAP;
+    const progress = Math.abs(offset) / slideWidth;
+
+    let shouldNavigate =
+      Math.abs(vx) > SWIPE_VELOCITY_THRESHOLD || progress > SWIPE_DISTANCE_THRESHOLD;
+
+    const direction = (offset < 0 ? 1 : -1) as 1 | -1;
+
+    // Don't navigate past edges
+    if (direction === 1 && this.currentIndex >= this.gallery.length - 1) shouldNavigate = false;
+    if (direction === -1 && this.currentIndex <= 0) shouldNavigate = false;
+
+    if (shouldNavigate) {
+      this.completeSwipeNav(direction, vx);
+    } else {
+      this.snapBackSwipeNav(vx);
+    }
+  }
+
+  private completeSwipeNav(direction: 1 | -1, velocity: number): void {
+    const slideWidth = window.innerWidth + SLIDE_GAP;
+    const targetX = -direction * slideWidth;
+
+    this.animateStrip(this.stripOffset, targetX, this.opts.springOpen, velocity, () =>
+      this.completeNavigation(direction),
+    );
+  }
+
+  private snapBackSwipeNav(velocity: number): void {
+    this.animateStrip(this.stripOffset, 0, SNAP_SPRING, velocity, () => {
+      this.stripOffset = 0;
+    });
   }
 
   // ─── Pinch-to-zoom ─────────────────────────────────────────
@@ -1290,8 +1800,14 @@ export class Lightbox {
 
     // Pan offset so that content under the initial midpoint stays under the current midpoint
     const scaleRatio = newScale / this.pinch.initialScale;
-    const panX = this.pinch.initialPanX + (midX - this.pinch.initialMidX) - (relX - this.pinch.initialPanX) * (scaleRatio - 1);
-    const panY = this.pinch.initialPanY + (midY - this.pinch.initialMidY) - (relY - this.pinch.initialPanY) * (scaleRatio - 1);
+    const panX =
+      this.pinch.initialPanX +
+      (midX - this.pinch.initialMidX) -
+      (relX - this.pinch.initialPanX) * (scaleRatio - 1);
+    const panY =
+      this.pinch.initialPanY +
+      (midY - this.pinch.initialMidY) -
+      (relY - this.pinch.initialPanY) * (scaleRatio - 1);
 
     this.zoom.scale = newScale;
     this.zoom.panX = panX;
@@ -1361,7 +1877,9 @@ export class Lightbox {
       const rY = springStep(config, sY, targetPanY, dt);
       const rS = springStep(config, sScale, targetScale, dt);
 
-      sX = rX; sY = rY; sScale = rS;
+      sX = rX;
+      sY = rY;
+      sScale = rS;
 
       this.zoom.panX = rX.position;
       this.zoom.panY = rY.position;
@@ -1369,10 +1887,12 @@ export class Lightbox {
       this.applyPanTransform();
 
       // Update state as soon as visually settled — don't wait for spring tail
-      if (!madeInteractive &&
-          Math.abs(rS.position - targetScale) < VISUAL_THRESHOLD * targetScale &&
-          Math.abs(rX.position - targetPanX) < 1 &&
-          Math.abs(rY.position - targetPanY) < 1) {
+      if (
+        !madeInteractive &&
+        Math.abs(rS.position - targetScale) < VISUAL_THRESHOLD * targetScale &&
+        Math.abs(rX.position - targetPanX) < 1 &&
+        Math.abs(rY.position - targetPanY) < 1
+      ) {
         madeInteractive = true;
         this.zoom.zoomed = zoomed;
         this.state.isAnimating = false;
@@ -1460,7 +1980,12 @@ export class Lightbox {
     this.imgEl.style.transform = `translate(${this.zoom.panX}px, ${this.zoom.panY}px) scale(${this.zoom.scale})`;
   }
 
-  private computePanBounds(scale: number): { minX: number; maxX: number; minY: number; maxY: number } {
+  private computePanBounds(scale: number): {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+  } {
     const { fitRect } = this.zoom;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
@@ -1521,9 +2046,40 @@ export class Lightbox {
     backdrop.style.opacity = '0';
     backdrop.addEventListener('click', this.close);
 
+    // Strip container — translates horizontally for gallery navigation
+    const strip = document.createElement('div');
+    strip.className = 'lightbox3-strip';
+
+    // Center slide
+    const { slide, img } = this.createSlide(src);
+    slide.style.left = '0';
+    slide.style.pointerEvents = 'auto';
+
+    strip.appendChild(slide);
+
+    overlay.addEventListener('pointerdown', this.handleOverlayPointerDown);
+    overlay.addEventListener('pointermove', this.handlePointerMove);
+    overlay.addEventListener('pointerup', this.handlePointerUp);
+    overlay.addEventListener('pointercancel', this.handlePointerUp);
+
+    overlay.appendChild(backdrop);
+    overlay.appendChild(strip);
+    document.body.appendChild(overlay);
+
+    this.overlay = overlay;
+    this.backdrop = backdrop;
+    this.stripEl = strip;
+    this.currentSlideEl = slide;
+    this.imgEl = img;
+  }
+
+  private createSlide(src: string): { slide: HTMLDivElement; img: HTMLImageElement } {
+    const slide = document.createElement('div');
+    slide.className = 'lightbox3-slide';
+
     const img = document.createElement('img');
     img.className = 'lightbox3-image';
-    img.src = src;
+    if (src) img.src = src;
     img.draggable = false;
 
     img.addEventListener('click', (e) => this.handleImageClick(e));
@@ -1532,18 +2088,74 @@ export class Lightbox {
     img.addEventListener('pointerup', this.handlePointerUp);
     img.addEventListener('pointercancel', this.handlePointerUp);
 
-    overlay.addEventListener('pointerdown', this.handleOverlayPointerDown);
-    overlay.addEventListener('pointermove', this.handlePointerMove);
-    overlay.addEventListener('pointerup', this.handlePointerUp);
-    overlay.addEventListener('pointercancel', this.handlePointerUp);
+    slide.appendChild(img);
+    return { slide, img };
+  }
 
-    overlay.appendChild(backdrop);
-    overlay.appendChild(img);
-    document.body.appendChild(overlay);
+  /** Create and position an adjacent (prev or next) slide in the strip. */
+  private createAdjacentSlide(galleryIndex: number, leftPosition: number): void {
+    if (!this.stripEl) return;
+    const item = this.gallery[galleryIndex];
+    if (!item) return;
 
-    this.overlay = overlay;
-    this.backdrop = backdrop;
-    this.imgEl = img;
+    const { slide, img } = this.createSlide('');
+    slide.style.left = `${leftPosition}px`;
+    slide.style.pointerEvents = 'none';
+
+    // Use full-res if already cached, otherwise thumbnail
+    this.setupSlideImage(img, item);
+
+    this.stripEl.appendChild(slide);
+
+    if (leftPosition < 0) {
+      this.prevSlideEl = slide;
+      this.prevSlideImg = img;
+    } else {
+      this.nextSlideEl = slide;
+      this.nextSlideImg = img;
+    }
+  }
+
+  /** Set the src and position for an adjacent slide's image. */
+  private setupSlideImage(img: HTMLImageElement, item: GalleryItem): void {
+    const cached = this.preloadCache.get(item.src);
+    const fullResReady = cached?.complete && cached.naturalWidth > 0;
+
+    if (fullResReady) {
+      img.src = item.src;
+      const rect = this.computeTargetRect(cached!.naturalWidth, cached!.naturalHeight);
+      this.positionImageEl(img, rect);
+    } else {
+      img.src = item.thumbSrc || item.src;
+      const thumbImg = item.triggerEl.querySelector('img') as HTMLImageElement | null;
+      const natW = thumbImg?.naturalWidth || 400;
+      const natH = thumbImg?.naturalHeight || 300;
+      const rect = this.computeTargetRectFromAspectRatio(natW, natH);
+      this.positionImageEl(img, rect);
+    }
+  }
+
+  /** Position an image element at the given rect. */
+  private positionImageEl(img: HTMLImageElement, rect: DOMRect): void {
+    Object.assign(img.style, {
+      left: `${rect.x}px`,
+      top: `${rect.y}px`,
+      width: `${rect.width}px`,
+      height: `${rect.height}px`,
+    });
+  }
+
+  /** Populate prev and next slides for gallery navigation. */
+  private populateAdjacentSlides(): void {
+    if (!this.stripEl || this.gallery.length <= 1) return;
+    const slideWidth = window.innerWidth + SLIDE_GAP;
+
+    if (this.currentIndex > 0) {
+      this.createAdjacentSlide(this.currentIndex - 1, -slideWidth);
+    }
+    if (this.currentIndex < this.gallery.length - 1) {
+      this.createAdjacentSlide(this.currentIndex + 1, slideWidth);
+    }
   }
 
   private removeOverlay(): void {
@@ -1552,6 +2164,12 @@ export class Lightbox {
       this.overlay = null;
       this.backdrop = null;
       this.imgEl = null;
+      this.stripEl = null;
+      this.currentSlideEl = null;
+      this.prevSlideEl = null;
+      this.prevSlideImg = null;
+      this.nextSlideEl = null;
+      this.nextSlideImg = null;
     }
   }
 
@@ -1604,12 +2222,7 @@ export class Lightbox {
     const offsetX = (elRect.width - renderedW) * px;
     const offsetY = (elRect.height - renderedH) * py;
 
-    return new DOMRect(
-      elRect.x + offsetX,
-      elRect.y + offsetY,
-      renderedW,
-      renderedH,
-    );
+    return new DOMRect(elRect.x + offsetX, elRect.y + offsetY, renderedW, renderedH);
   }
 
   private computeCropInsets(
@@ -1687,7 +2300,12 @@ export class Lightbox {
   }
 
   private isInViewport(rect: DOMRect): boolean {
-    return rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth;
+    return (
+      rect.bottom > 0 &&
+      rect.top < window.innerHeight &&
+      rect.right > 0 &&
+      rect.left < window.innerWidth
+    );
   }
 }
 

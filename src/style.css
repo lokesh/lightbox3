@@ -16,8 +16,23 @@
   cursor: pointer;
 }
 
-.lightbox3-image {
+.lightbox3-strip {
   position: fixed;
+  inset: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.lightbox3-slide {
+  position: absolute;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+
+.lightbox3-image {
+  position: absolute;
   object-fit: cover;
   user-select: none;
   -webkit-user-drag: none;
@@ -40,7 +55,9 @@
 }
 
 @keyframes lightbox3-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
