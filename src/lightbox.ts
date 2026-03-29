@@ -531,17 +531,16 @@ export class Lightbox {
     this.zoom.naturalHeight = natH;
 
     // Compute the FLIP transform: what transform makes the image look like it's at thumbRect?
-    const scaleX = thumbRect.width / targetRect.width;
-    const scaleY = thumbRect.height / targetRect.height;
-    const flipScale = Math.min(scaleX, scaleY);
     const flipX = thumbRect.x + thumbRect.width / 2 - (targetRect.x + targetRect.width / 2);
     const flipY = thumbRect.y + thumbRect.height / 2 - (targetRect.y + targetRect.height / 2);
 
-    // Compute crop insets for object-fit:cover thumbnails
-    this.cropInsets = this.computeCropInsets(triggerEl, thumbRect, targetRect);
-    const hasCrop =
-      this.cropInsets.top + this.cropInsets.right + this.cropInsets.bottom + this.cropInsets.left >
-      0;
+    // Compute FLIP scale and crop insets (handles CSS cover + server-side crop)
+    const { flipScale, hasCrop } = this.computeFlipCrop(
+      thumbRect,
+      targetRect,
+      triggerEl,
+      false,
+    );
 
     // Start full-res load immediately so it continues regardless of animation interrupts
     if (thumbSrc && thumbSrc !== src) {
@@ -853,26 +852,17 @@ export class Lightbox {
       ? this.textLinkFlipRect(thumbRect, this.zoom.naturalWidth, this.zoom.naturalHeight)
       : thumbRect;
 
-    const scaleX = morphRect.width / fitRect.width;
-    const scaleY = morphRect.height / fitRect.height;
-    const flipScale = Math.min(scaleX, scaleY);
     const flipX = morphRect.x + morphRect.width / 2 - (fitRect.x + fitRect.width / 2);
     const flipY = morphRect.y + morphRect.height / 2 - (fitRect.y + fitRect.height / 2);
 
-    // Recompute crop insets for close (thumb may have moved since open)
-    // Text links never have crop insets.
-    const hasCrop = this.isTextLink
-      ? false
-      : (() => {
-          this.cropInsets = this.computeCropInsets(this.state.triggerEl!, thumbRect, fitRect);
-          return (
-            this.cropInsets.top +
-              this.cropInsets.right +
-              this.cropInsets.bottom +
-              this.cropInsets.left >
-            0
-          );
-        })();
+    // Recompute crop insets for close (thumb may have moved since open).
+    // Handles both CSS object-fit:cover and server-side aspect ratio mismatches.
+    const { flipScale, hasCrop } = this.computeFlipCrop(
+      morphRect,
+      fitRect,
+      this.state.triggerEl,
+      this.isTextLink,
+    );
 
     this.animateSpring(
       { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
@@ -1861,24 +1851,15 @@ export class Lightbox {
       ? this.textLinkFlipRect(thumbRect, this.zoom.naturalWidth, this.zoom.naturalHeight)
       : thumbRect;
 
-    const scaleX = morphRect.width / fitRect.width;
-    const scaleY = morphRect.height / fitRect.height;
-    const flipScale = Math.min(scaleX, scaleY);
     const flipX = morphRect.x + morphRect.width / 2 - (fitRect.x + fitRect.width / 2);
     const flipY = morphRect.y + morphRect.height / 2 - (fitRect.y + fitRect.height / 2);
 
-    const hasCrop = this.isTextLink
-      ? false
-      : (() => {
-          this.cropInsets = this.computeCropInsets(this.state.triggerEl!, thumbRect, fitRect);
-          return (
-            this.cropInsets.top +
-              this.cropInsets.right +
-              this.cropInsets.bottom +
-              this.cropInsets.left >
-            0
-          );
-        })();
+    const { flipScale, hasCrop } = this.computeFlipCrop(
+      morphRect,
+      fitRect,
+      this.state.triggerEl,
+      this.isTextLink,
+    );
 
     // Clean up as soon as the image is visually at the thumbnail — the swap
     // from animated image → real thumbnail is imperceptible at this point.
@@ -3001,6 +2982,57 @@ export class Lightbox {
       bottom: bottomFrac * targetRect.height,
       left: leftFrac * targetRect.width,
     };
+  }
+
+  /**
+   * Compute FLIP scale and crop insets for morphing between the lightbox image
+   * and a thumbnail. Handles both CSS object-fit:cover cropping and server-side
+   * aspect ratio mismatches (e.g. Unsplash ?fit=crop).
+   */
+  private computeFlipCrop(
+    morphRect: DOMRect,
+    fitRect: DOMRect,
+    triggerEl: HTMLElement | null,
+    isTextLink: boolean,
+  ): { flipScale: number; hasCrop: boolean } {
+    const scaleX = morphRect.width / fitRect.width;
+    const scaleY = morphRect.height / fitRect.height;
+
+    // Try CSS object-fit:cover crop detection first.
+    // Threshold filters out subpixel floating-point noise from getThumbRect.
+    if (!isTextLink && triggerEl) {
+      this.cropInsets = this.computeCropInsets(triggerEl, morphRect, fitRect);
+      const cssCrop =
+        this.cropInsets.top + this.cropInsets.right + this.cropInsets.bottom + this.cropInsets.left;
+      if (cssCrop > 1) {
+        return { flipScale: Math.min(scaleX, scaleY), hasCrop: true };
+      }
+    }
+
+    // Check for aspect ratio mismatch (e.g. server-side crop produces different
+    // aspect ratio than the full-res image). When present, use Math.max (fill)
+    // instead of Math.min (fit) and clip the excess via clip-path.
+    const morphRatio = morphRect.width / morphRect.height;
+    const fitRatio = fitRect.width / fitRect.height;
+    const relDiff = Math.abs(morphRatio - fitRatio) / Math.max(morphRatio, fitRatio);
+
+    if (!isTextLink && relDiff > 0.05) {
+      const flipScale = Math.max(scaleX, scaleY);
+      // What portion of the local (pre-transform) image is visible after scaling
+      const visibleLocalW = morphRect.width / flipScale;
+      const visibleLocalH = morphRect.height / flipScale;
+      // Symmetric (centered) crop — matches the common center-crop default
+      this.cropInsets = {
+        top: Math.max(0, (fitRect.height - visibleLocalH) / 2),
+        bottom: Math.max(0, (fitRect.height - visibleLocalH) / 2),
+        left: Math.max(0, (fitRect.width - visibleLocalW) / 2),
+        right: Math.max(0, (fitRect.width - visibleLocalW) / 2),
+      };
+      return { flipScale, hasCrop: true };
+    }
+
+    // No crop needed — aspect ratios match
+    return { flipScale: Math.min(scaleX, scaleY), hasCrop: false };
   }
 
   private setThumbVisibility(visible: boolean): void {
