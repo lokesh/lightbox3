@@ -109,6 +109,7 @@ const PINCH_RUBBER_BAND_FACTOR = 0.4;
 const SLIDE_GAP = 16;
 const SWIPE_VELOCITY_THRESHOLD = 300;
 const SWIPE_DISTANCE_THRESHOLD = 0.3;
+const PRESS_SPRING: SpringConfig = { stiffness: 300, damping: 20, mass: 1 };
 
 export class Lightbox {
   private opts: Required<LightboxOptions>;
@@ -183,6 +184,10 @@ export class Lightbox {
   private chromeRafId: number | null = null;
   private chromeSpring: SpringState = { position: 0, velocity: 0 };
   private chromeBaseOpacity: number = 0;
+
+  // Spring-driven button press (scale down on press, bounce back on release)
+  private pressSprings = new Map<HTMLButtonElement, { state: SpringState; target: number }>();
+  private pressRafId: number | null = null;
 
   constructor(opts: LightboxOptions = {}) {
     this.opts = { ...DEFAULTS, ...opts };
@@ -866,6 +871,11 @@ export class Lightbox {
   private navigateTo(direction: 1 | -1): void {
     this.userHasNavigated = true;
     this.pendingNavDirection = direction;
+
+    // Enable pointer events on the destination slide so it can receive clicks
+    // while animating into view, instead of falling through to the backdrop.
+    const destSlide = direction === 1 ? this.nextSlideEl : this.prevSlideEl;
+    if (destSlide) destSlide.style.pointerEvents = 'auto';
 
     const slideWidth = window.innerWidth + SLIDE_GAP;
     const targetX = -direction * slideWidth;
@@ -1814,6 +1824,11 @@ export class Lightbox {
   }
 
   private completeSwipeNav(direction: 1 | -1, velocity: number): void {
+    this.pendingNavDirection = direction;
+
+    const destSlide = direction === 1 ? this.nextSlideEl : this.prevSlideEl;
+    if (destSlide) destSlide.style.pointerEvents = 'auto';
+
     const slideWidth = window.innerWidth + SLIDE_GAP;
     const targetX = -direction * slideWidth;
 
@@ -2093,6 +2108,12 @@ export class Lightbox {
       return;
     }
 
+    // If a strip animation is in progress, complete it so zoom state is valid
+    // for the newly-current image before processing the click.
+    if (this.pendingNavDirection !== null) {
+      this.forceCompleteStripAnimation();
+    }
+
     // Zoomed (idle or animating) — zoom out
     if (this.zoom.zoomed || this.zoom.scale !== 1) {
       this.zoomOut();
@@ -2169,6 +2190,7 @@ export class Lightbox {
     close.addEventListener('pointerdown', (e) => e.stopPropagation());
     bar.appendChild(close);
     this.chromeClose = close;
+    this.bindPressSpring(close);
 
     this.overlay.appendChild(bar);
     this.chromeBar = bar;
@@ -2188,6 +2210,7 @@ export class Lightbox {
       prev.addEventListener('pointerdown', (e) => e.stopPropagation());
       this.overlay.appendChild(prev);
       this.chromePrev = prev;
+      this.bindPressSpring(prev);
 
       const next = document.createElement('button');
       next.className = 'lightbox3-arrow lightbox3-arrow-next';
@@ -2202,6 +2225,7 @@ export class Lightbox {
       next.addEventListener('pointerdown', (e) => e.stopPropagation());
       this.overlay.appendChild(next);
       this.chromeNext = next;
+      this.bindPressSpring(next);
 
       this.updateArrowVisibility();
     }
@@ -2275,16 +2299,20 @@ export class Lightbox {
       this.chromeBar.style.pointerEvents = interactive ? '' : 'none';
     }
     if (this.chromePrev) {
+      const prevScale = this.getPressScale(this.chromePrev);
       this.chromePrev.style.opacity = String(opacity);
-      this.chromePrev.style.transform = `translateY(-50%) translateX(${-arrowX}px)`;
+      this.chromePrev.style.transform = `translateY(-50%) translateX(${-arrowX}px) scale(${prevScale})`;
       this.chromePrev.style.pointerEvents = interactive ? '' : 'none';
     }
     if (this.chromeNext) {
+      const nextScale = this.getPressScale(this.chromeNext);
       this.chromeNext.style.opacity = String(opacity);
-      this.chromeNext.style.transform = `translateY(-50%) translateX(${arrowX}px)`;
+      this.chromeNext.style.transform = `translateY(-50%) translateX(${arrowX}px) scale(${nextScale})`;
       this.chromeNext.style.pointerEvents = interactive ? '' : 'none';
     }
     if (this.chromeClose) {
+      const closeScale = this.getPressScale(this.chromeClose);
+      this.chromeClose.style.transform = `scale(${closeScale})`;
       this.chromeClose.style.pointerEvents = interactive ? '' : 'none';
     }
   }
@@ -2294,6 +2322,50 @@ export class Lightbox {
       cancelAnimationFrame(this.chromeRafId);
       this.chromeRafId = null;
     }
+  }
+
+  // ─── Button press spring ────────────────────────────────────
+
+  private bindPressSpring(btn: HTMLButtonElement): void {
+    this.pressSprings.set(btn, { state: { position: 1, velocity: 0 }, target: 1 });
+    btn.addEventListener('pointerdown', () => this.animatePressSpring(btn, 0.85));
+    btn.addEventListener('pointerup', () => this.animatePressSpring(btn, 1));
+    btn.addEventListener('pointerleave', () => this.animatePressSpring(btn, 1));
+  }
+
+  private getPressScale(btn: HTMLButtonElement | null): number {
+    if (!btn) return 1;
+    const entry = this.pressSprings.get(btn);
+    return entry ? entry.state.position : 1;
+  }
+
+  private animatePressSpring(btn: HTMLButtonElement, target: number): void {
+    const entry = this.pressSprings.get(btn);
+    if (!entry) return;
+    entry.target = target;
+    this.startPressLoop();
+  }
+
+  private startPressLoop(): void {
+    if (this.pressRafId !== null) return;
+    let lastTime = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min((now - lastTime) / 1000, 0.064);
+      lastTime = now;
+      let allSettled = true;
+      for (const [, entry] of this.pressSprings) {
+        const result = springStep(PRESS_SPRING, entry.state, entry.target, dt);
+        entry.state = result;
+        if (!result.settled) allSettled = false;
+      }
+      this.updateChromeVisuals();
+      if (allSettled) {
+        this.pressRafId = null;
+        return;
+      }
+      this.pressRafId = requestAnimationFrame(tick);
+    };
+    this.pressRafId = requestAnimationFrame(tick);
   }
 
   // ─── DOM ─────────────────────────────────────────────────────
@@ -2439,6 +2511,11 @@ export class Lightbox {
       this.chromeClose = null;
       this.chromePrev = null;
       this.chromeNext = null;
+      this.pressSprings.clear();
+      if (this.pressRafId !== null) {
+        cancelAnimationFrame(this.pressRafId);
+        this.pressRafId = null;
+      }
     }
   }
 

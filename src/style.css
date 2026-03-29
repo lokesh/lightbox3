@@ -119,19 +119,13 @@
   cursor: pointer;
   pointer-events: auto;
   flex-shrink: 0;
-  transition: transform 0.15s ease, background 0.15s ease;
+  transition: background 0.15s ease;
 }
 
 .lightbox3-close:hover {
   background: rgba(255, 255, 255, 0.16);
   color: rgba(255, 255, 255, 0.95);
 }
-
-.lightbox3-close:active {
-  transform: scale(0.85);
-  transition: transform 0.08s ease;
-}
-
 
 .lightbox3-close svg {
   width: 14px;
@@ -157,19 +151,13 @@
   cursor: pointer;
   pointer-events: auto;
   z-index: 1;
-  transition: transform 0.15s ease, background 0.15s ease;
+  transition: background 0.15s ease;
 }
 
 .lightbox3-arrow:hover {
   background: rgba(24, 24, 24, 0.85);
   color: rgba(255, 255, 255, 0.95);
 }
-
-.lightbox3-arrow:active {
-  transform: translateY(-50%) scale(0.85);
-  transition: transform 0.08s ease;
-}
-
 
 .lightbox3-arrow svg {
   width: 20px;
