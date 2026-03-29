@@ -1,5 +1,5 @@
 import { springStep, SPRING_OPEN, SPRING_CLOSE } from './physics/spring';
-import type { SpringConfig, SpringState } from './physics/spring';
+import type { SpringConfig, SpringState, SpringStepResult } from './physics/spring';
 // Note: easing.ts is no longer used — all animations are rAF + spring physics
 
 export interface LightboxOptions {
@@ -197,6 +197,9 @@ export class Lightbox {
   private pressSprings = new Map<HTMLButtonElement, { state: SpringState; target: number }>();
   private pressRafId: number | null = null;
 
+  // Spring-driven fit-rect transition (aspect ratio change on full-res swap)
+  private fitRafId: number | null = null;
+
   // Scroll lock state
   private savedBodyOverflow: string = '';
   private savedBodyPaddingRight: string = '';
@@ -245,6 +248,7 @@ export class Lightbox {
     this.cancelPreload();
     this.stopSpring();
     this.stopStripSpring();
+    this.stopFitTransition();
     this.removeOverlay();
   }
 
@@ -543,13 +547,16 @@ export class Lightbox {
       this.swapToFullRes(src);
     }
 
-    // Populate adjacent gallery slides (off-screen, ready for swipe)
-    this.populateAdjacentSlides();
-
-    // Preload neighbor images
+    // Preload neighbor images BEFORE populating adjacent slides — this ensures
+    // the preload cache has Image objects that setupSlideImage can attach load
+    // listeners to. Without this, adjacent slides fall back to thumbnails because
+    // the cache entry doesn't exist yet when the slide is created.
     if (this.gallery.length > 1) {
       this.schedulePreloads();
     }
+
+    // Populate adjacent gallery slides (off-screen, ready for swipe)
+    this.populateAdjacentSlides();
 
     // Start spring from FLIP position → identity.
     // earlyComplete fires when visually done — don't wait for the spring tail
@@ -689,17 +696,88 @@ export class Lightbox {
       this.zoom.naturalWidth = size.width;
       this.zoom.naturalHeight = size.height;
 
-      // Always reposition: even when aspect ratios match, the initial target rect
-      // may have been computed from the thumbnail's aspect ratio (without the
-      // "never upscale" cap), so the real dimensions may produce a different rect.
       if (!this.zoom.zoomed) {
         const targetRect = this.computeTargetRect(size.width, size.height);
-        this.zoom.fitRect = targetRect;
-        this.positionImage(targetRect);
+        const currentRect = this.zoom.fitRect;
+
+        // If size/position changed meaningfully, spring-animate the transition
+        const dx = Math.abs(targetRect.x - currentRect.x);
+        const dy = Math.abs(targetRect.y - currentRect.y);
+        const dw = Math.abs(targetRect.width - currentRect.width);
+        const dh = Math.abs(targetRect.height - currentRect.height);
+
+        if (dx > 1 || dy > 1 || dw > 1 || dh > 1) {
+          this.animateFitTransition(currentRect, targetRect);
+        } else {
+          this.zoom.fitRect = targetRect;
+          this.positionImage(targetRect);
+        }
       }
 
       this.updateCursorState();
     });
+  }
+
+  /** Spring-animate the image from one fit rect to another (aspect ratio change). */
+  private animateFitTransition(from: DOMRect, to: DOMRect): void {
+    this.stopFitTransition();
+
+    const img = this.imgEl!;
+    const config = PAN_SPRING; // Soft spring for a gentle settle
+    const springs = {
+      x: { position: from.x, velocity: 0, settled: false } as SpringStepResult,
+      y: { position: from.y, velocity: 0, settled: false } as SpringStepResult,
+      w: { position: from.width, velocity: 0, settled: false } as SpringStepResult,
+      h: { position: from.height, velocity: 0, settled: false } as SpringStepResult,
+    };
+
+    let lastTime = performance.now();
+
+    const tick = (now: number) => {
+      const dt = Math.min((now - lastTime) / 1000, 0.064);
+      lastTime = now;
+
+      springs.x = springStep(config, springs.x, to.x, dt);
+      springs.y = springStep(config, springs.y, to.y, dt);
+      springs.w = springStep(config, springs.w, to.width, dt);
+      springs.h = springStep(config, springs.h, to.height, dt);
+
+      Object.assign(img.style, {
+        left: `${springs.x.position}px`,
+        top: `${springs.y.position}px`,
+        width: `${springs.w.position}px`,
+        height: `${springs.h.position}px`,
+      });
+
+      const settled =
+        springs.x.settled && springs.y.settled && springs.w.settled && springs.h.settled;
+
+      if (settled) {
+        this.zoom.fitRect = to;
+        this.positionImage(to);
+        this.fitRafId = null;
+        return;
+      }
+
+      // Keep fitRect in sync so zoom/pan reads live values
+      this.zoom.fitRect = new DOMRect(
+        springs.x.position,
+        springs.y.position,
+        springs.w.position,
+        springs.h.position,
+      );
+
+      this.fitRafId = requestAnimationFrame(tick);
+    };
+
+    this.fitRafId = requestAnimationFrame(tick);
+  }
+
+  private stopFitTransition(): void {
+    if (this.fitRafId !== null) {
+      cancelAnimationFrame(this.fitRafId);
+      this.fitRafId = null;
+    }
   }
 
   close(): void {
@@ -804,6 +882,7 @@ export class Lightbox {
     this.debugLog('finishClose');
     this.stopDebugPanel();
     this.removeSpinner();
+    this.stopFitTransition();
     this.stopChromeSpring();
     this.chromeSpring = { position: 0, velocity: 0 };
     this.chromeBaseOpacity = 0;
@@ -952,14 +1031,16 @@ export class Lightbox {
     this.stripOffset = 0;
     if (this.stripEl) this.stripEl.style.transform = '';
 
+    // Schedule preloads BEFORE recycling — recycleSlots creates a new adjacent
+    // slide, and it needs the preload cache entry to exist so it can attach a
+    // load listener for the full-res upgrade.
+    this.schedulePreloads();
+
     // Recycle DOM slots
     this.recycleSlots(direction);
 
     // Set up new current image (zoom state, full-res swap)
     this.setupCurrentImage();
-
-    // Preload more images
-    this.schedulePreloads();
 
     // Wheel navigation: ready for new gesture now that the image has landed
     this.wheelNavCommitted = false;
@@ -1026,17 +1107,28 @@ export class Lightbox {
   /** Set up zoom state and image src for the newly-centered current image. */
   private setupCurrentImage(): void {
     this.zoom = this.defaultZoomState();
+    this.stopFitTransition();
 
     const item = this.gallery[this.currentIndex];
     if (!item || !this.imgEl) return;
 
+    // Check preload cache first
     const cached = this.preloadCache.get(item.src);
     const fullResReady = cached?.complete && cached.naturalWidth > 0;
 
-    if (fullResReady) {
-      this.zoom.naturalWidth = cached!.naturalWidth;
-      this.zoom.naturalHeight = cached!.naturalHeight;
-      this.zoom.fitRect = this.computeTargetRect(cached!.naturalWidth, cached!.naturalHeight);
+    // Also check if the slide's img element already has full-res loaded
+    // (e.g. preload finished during strip animation and upgraded the adjacent slide)
+    const imgHasFullRes =
+      this.imgEl.src === item.src &&
+      this.imgEl.complete &&
+      this.imgEl.naturalWidth > 0;
+
+    if (fullResReady || imgHasFullRes) {
+      const natW = fullResReady ? cached!.naturalWidth : this.imgEl.naturalWidth;
+      const natH = fullResReady ? cached!.naturalHeight : this.imgEl.naturalHeight;
+      this.zoom.naturalWidth = natW;
+      this.zoom.naturalHeight = natH;
+      this.zoom.fitRect = this.computeTargetRect(natW, natH);
       this.imgEl.src = item.src;
       this.positionImage(this.zoom.fitRect);
     } else {
@@ -2756,6 +2848,23 @@ export class Lightbox {
       const natH = thumbImg?.naturalHeight || 300;
       const rect = this.computeTargetRectFromAspectRatio(natW, natH);
       this.positionImageEl(img, rect);
+
+      // If preload is in progress, upgrade this slide as soon as it completes
+      if (cached && !cached.complete) {
+        const onLoad = () => {
+          cached.removeEventListener('load', onLoad);
+          // Only upgrade if this img is still an adjacent slide (not yet current)
+          if (
+            (img === this.prevSlideImg || img === this.nextSlideImg) &&
+            cached.naturalWidth > 0
+          ) {
+            img.src = item.src;
+            const fullRect = this.computeTargetRect(cached.naturalWidth, cached.naturalHeight);
+            this.positionImageEl(img, fullRect);
+          }
+        };
+        cached.addEventListener('load', onLoad);
+      }
     }
   }
 
@@ -3070,6 +3179,31 @@ export class Lightbox {
       `gestureTimer: ${on(this.wheelGestureTimer !== null)}`,
       `dismissY: ${px(this.wheelDismissY)}`,
     ];
+
+    // Gallery preload status
+    if (this.gallery.length > 1) {
+      lines.push('', '── gallery preload ────');
+      for (let i = 0; i < this.gallery.length; i++) {
+        const item = this.gallery[i];
+        const cached = this.preloadCache.get(item.src);
+        const isCurrent = i === this.currentIndex;
+        const marker = isCurrent ? '▸' : ' ';
+
+        let status: string;
+        if (cached?.complete && cached.naturalWidth > 0) {
+          status = `● ${cached.naturalWidth}×${cached.naturalHeight}`;
+        } else if (cached) {
+          status = '◐ loading';
+        } else {
+          status = '○ pending';
+        }
+
+        // Truncate filename for display
+        const filename = item.src.split('/').pop() || item.src;
+        const name = filename.length > 20 ? filename.slice(0, 19) + '…' : filename;
+        lines.push(`${marker}${String(i + 1).padStart(2)} ${name.padEnd(20)} ${status}`);
+      }
+    }
 
     this.debugStateEl.textContent = lines.join('\n');
   }
