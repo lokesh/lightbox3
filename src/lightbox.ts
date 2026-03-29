@@ -930,8 +930,8 @@ export class Lightbox {
       this.bounceRafId = null;
     }
 
-    const config = { stiffness: 900, damping: 60, mass: 1 };
-    const spring: SpringState = { position: 0.95, velocity: 0 };
+    const config = { stiffness: 900, damping: 80, mass: 1 };
+    const spring: SpringState = { position: 0.98, velocity: 0 };
     const target = 1;
     let lastTime = performance.now();
 
