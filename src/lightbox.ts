@@ -893,12 +893,15 @@ export class Lightbox {
     // Update chrome UI
     this.updateChromeContent();
 
-    // Recycle DOM slots
-    this.recycleSlots(direction);
-
-    // Reset strip
+    // Reset strip BEFORE recycling — recycleSlots creates a new adjacent slide
+    // and appends it to the strip. If the strip still has its animation transform
+    // (-slideWidth), the new slide at left:slideWidth appears at visual position 0
+    // (center) for one frame before the transform is cleared.
     this.stripOffset = 0;
     if (this.stripEl) this.stripEl.style.transform = '';
+
+    // Recycle DOM slots
+    this.recycleSlots(direction);
 
     // Set up new current image (zoom state, full-res swap)
     this.setupCurrentImage();

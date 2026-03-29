@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `src/index.ts` — Entry point. Exports `Lightbox` class, auto-initializes on `[data-lightbox]` elements.
 - `src/lightbox.ts` — Core `Lightbox` class: open/close morph, zoom, pan with momentum, preloading. All animation via rAF + spring physics.
 - `src/physics/spring.ts` — Damped harmonic oscillator (`springStep`) using semi-implicit Euler integration. Spring presets and types.
-- `src/style.css` — Overlay/backdrop/image styles. Extracted to `dist/lightbox3.css` by PostCSS.
+- `src/style.css` — Overlay/backdrop/image styles, chrome UI (caption bar, close button, nav arrows, counter). Extracted to `dist/lightbox3.css` by PostCSS.
 - `src/easing.ts` — Legacy, unused. All animations use springs.
 
 ## Vocabulary
@@ -28,25 +28,35 @@ Use these terms consistently in code, comments, and conversation.
 - **closed** — No overlay, thumbnails only
 - **opened** — Image visible, fit to viewport (`scale === 1`)
 - **zoomed** — Image at native/larger scale (`scale > 1`), pannable
+- **navigating** — Gallery mode, viewing one image in a multi-image set
 
 ### Transitions (animated movements between views)
 
 - **opening** — closed → opened
-- **closing** — opened → closed
+- **closing** — opened → closed (FLIP morph back to thumbnail, or fade for text links)
+- **dismissing** — opened → closed via vertical swipe (velocity-based commit/snap-back)
 - **zooming in** — opened → zoomed
 - **zooming out** — zoomed → opened
+- **navigating** — opened → opened (next/prev image in gallery, strip slides laterally)
 
 ### Gestures (user-driven, in progress)
 
 - **panning** — dragging while zoomed
 - **momentum** — post-release glide (spring-driven)
 - **snap-back** — rubber-band return to pan bounds
+- **swiping** — horizontal swipe to navigate gallery (prev/next)
+- **pinching** — two-finger pinch-to-zoom on touch devices
+- **dismiss drag** — vertical drag to close (swipe-to-dismiss)
+- **rubber-band bounce** — spring bounce at gallery edges when no more images
 
 ### Systems (internal engines)
 
 - **spring engine** — rAF loop + `springStep()` that drives all animations
 - **FLIP morph** — open/close technique (measure thumb → measure target → animate the delta)
 - **preloader** — hover-triggered image prefetch
+- **strip** — slide container (`lightbox3-strip`) holding current + adjacent slides for gallery navigation. Translated horizontally via spring for swipe/nav transitions.
+- **chrome UI** — bottom caption bar (caption, counter, close button) + side nav arrows. Opacity animated via its own spring. Hidden when zoomed or single image.
+- **dismiss gesture** — vertical swipe-to-dismiss system with velocity tracking, rubber-band resistance, and commit/snap-back threshold
 
 ## Animation Architecture
 
@@ -113,7 +123,10 @@ No tests for now. Do not add or suggest tests.
 
 ### Spring presets
 
+Exported from `spring.ts`:
 - `SPRING_OPEN` (stiffness: 260, damping: 24) — open morph, zoom in
 - `SPRING_CLOSE` (stiffness: 300, damping: 28) — close morph, zoom out
-- `PAN_SPRING` (stiffness: 170, damping: 26) — pan momentum (softer, more glide)
-- `SNAP_SPRING` (stiffness: 300, damping: 30) — rubber band snap-back (stiffer)
+
+Defined locally in `lightbox.ts`:
+- `PAN_SPRING` (stiffness: 170, damping: 26) — pan momentum, strip slide animation (softer, more glide)
+- `SNAP_SPRING` (stiffness: 300, damping: 30) — rubber band snap-back, swipe snap-back (stiffer)
