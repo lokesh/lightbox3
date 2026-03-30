@@ -1,4 +1,4 @@
-import { springStep, SPRING_OPEN, SPRING_CLOSE } from './physics/spring';
+import { springStep, SPRING_MORPH, SPRING_OPEN, SPRING_CLOSE } from './physics/spring';
 import type { SpringConfig, SpringState, SpringStepResult } from './physics/spring';
 // Note: easing.ts is no longer used — all animations are rAF + spring physics
 
@@ -575,12 +575,12 @@ export class Lightbox {
     this.animateSpring(
       { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0 },
       { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
-      this.opts.springOpen,
+      SPRING_MORPH,
       () => {
         this.state.isAnimating = false;
         this.updateCursorState();
       },
-      (s) => s.opacity > 0.99 && Math.abs(s.scale - 1) < 0.01,
+      undefined,
     );
   }
 
@@ -676,12 +676,12 @@ export class Lightbox {
     this.animateSpring(
       { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: 0 },
       { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
-      this.opts.springOpen,
+      SPRING_MORPH,
       () => {
         this.state.isAnimating = false;
         this.updateCursorState();
       },
-      (s) => s.opacity > 0.99 && Math.abs(s.scale - 1) < 0.01,
+      undefined,
     );
   }
 
