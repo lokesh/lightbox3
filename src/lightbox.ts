@@ -103,6 +103,7 @@ interface SwipeNavState {
 
 const PRELOAD_DELAY = 80;
 const DRAG_THRESHOLD = 4;
+const AXIS_LOCK_THRESHOLD = 10;
 const RUBBER_BAND_FACTOR = 0.35;
 const VELOCITY_WINDOW = 80;
 const PAN_SPRING: SpringConfig = { stiffness: 170, damping: 26, mass: 1 };
@@ -572,6 +573,7 @@ export class Lightbox {
     // Start spring from FLIP position → identity.
     // earlyComplete fires when visually done — don't wait for the spring tail
     // to clear isAnimating, or dismiss tracking will be blocked.
+    const openVisuallyDone = (s: AnimState) => s.opacity > 0.99;
     this.animateSpring(
       { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0 },
       { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
@@ -580,7 +582,7 @@ export class Lightbox {
         this.state.isAnimating = false;
         this.updateCursorState();
       },
-      undefined,
+      openVisuallyDone,
     );
   }
 
@@ -673,6 +675,7 @@ export class Lightbox {
     const flipX = flipRect.x + flipRect.width / 2 - (targetRect.x + targetRect.width / 2);
     const flipY = flipRect.y + flipRect.height / 2 - (targetRect.y + targetRect.height / 2);
 
+    const openVisuallyDone = (s: AnimState) => s.opacity > 0.99;
     this.animateSpring(
       { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: 0 },
       { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
@@ -681,7 +684,7 @@ export class Lightbox {
         this.state.isAnimating = false;
         this.updateCursorState();
       },
-      undefined,
+      openVisuallyDone,
     );
   }
 
@@ -1827,10 +1830,12 @@ export class Lightbox {
     const dy = e.clientY - this.dismiss.startY;
 
     if (!this.dismiss.active) {
-      // Still tracking — determine axis once past drag threshold
-      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      // Still tracking — determine axis once past threshold.
+      // Use a larger threshold than DRAG_THRESHOLD so the angle has enough
+      // signal to commit reliably, especially on mobile.
+      if (Math.hypot(dx, dy) < AXIS_LOCK_THRESHOLD) return;
 
-      if (Math.abs(dy) > Math.abs(dx)) {
+      if (Math.abs(dy) > Math.abs(dx) * 1.5) {
         // Vertical wins — activate dismiss
         this.dismiss.active = true;
         this.dismiss.tracking = false;
@@ -1900,7 +1905,7 @@ export class Lightbox {
     const dist = Math.hypot(this.dismiss.offsetX, this.dismiss.offsetY);
     const speed = Math.hypot(vx, vy);
 
-    if (dist < 10 && speed < 100) {
+    if (dist < 5 && speed < 50) {
       this.dismissSnapBack(vx, vy);
     } else {
       this.dismissClose(vx, vy);
