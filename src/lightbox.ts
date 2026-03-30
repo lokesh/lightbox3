@@ -192,6 +192,13 @@ export class Lightbox {
   private chromeRafId: number | null = null;
   private chromeSpring: SpringState = { position: 0, velocity: 0 };
   private chromeBaseOpacity: number = 0;
+  private chromeDriftProgress: number = 0;
+  private chromeDriftVectors: {
+    bar: { x: number; y: number };
+    prev: { x: number; y: number };
+    next: { x: number; y: number };
+  } = { bar: { x: 0, y: 0 }, prev: { x: 0, y: 0 }, next: { x: 0, y: 0 } };
+  private chromeFadeSwapped: boolean = false;
 
   // Spring-driven button press (scale down on press, bounce back on release)
   private pressSprings = new Map<HTMLButtonElement, { state: SpringState; target: number }>();
@@ -504,6 +511,10 @@ export class Lightbox {
 
     this.createOverlay(thumbSrc || src);
     this.createChrome();
+    this.computeChromeDrift(
+      thumbRect.x + thumbRect.width / 2,
+      thumbRect.y + thumbRect.height / 2,
+    );
     document.addEventListener('keydown', this.handleKeydown);
     this.setThumbVisibility(false);
 
@@ -586,6 +597,11 @@ export class Lightbox {
     // Image not ready — show overlay + spinner, load, then morph
     this.createOverlay('');
     this.createChrome();
+    const triggerRect = triggerEl.getBoundingClientRect();
+    this.computeChromeDrift(
+      triggerRect.x + triggerRect.width / 2,
+      triggerRect.y + triggerRect.height / 2,
+    );
     document.addEventListener('keydown', this.handleKeydown);
     if (this.imgEl) this.imgEl.style.opacity = '0';
 
@@ -631,6 +647,10 @@ export class Lightbox {
     if (!this.overlay) {
       this.createOverlay(src);
       this.createChrome();
+      this.computeChromeDrift(
+        thumbRect.x + thumbRect.width / 2,
+        thumbRect.y + thumbRect.height / 2,
+      );
       document.addEventListener('keydown', this.handleKeydown);
     } else {
       this.imgEl!.src = src;
@@ -831,6 +851,13 @@ export class Lightbox {
 
     const thumbRect = this.state.triggerEl ? this.getThumbRect(this.state.triggerEl) : null;
 
+    if (thumbRect) {
+      this.computeChromeDrift(
+        thumbRect.x + thumbRect.width / 2,
+        thumbRect.y + thumbRect.height / 2,
+      );
+    }
+
     const closeWhenInvisible = (s: AnimState) => s.opacity < 0.01;
 
     if (!thumbRect || !this.isInViewport(thumbRect)) {
@@ -881,6 +908,7 @@ export class Lightbox {
     this.stopChromeSpring();
     this.chromeSpring = { position: 0, velocity: 0 };
     this.chromeBaseOpacity = 0;
+    this.resetChromeDrift();
     this.setThumbVisibility(true);
     this.removeOverlay();
     this.unlockBodyScroll();
@@ -1016,8 +1044,12 @@ export class Lightbox {
     // Hide new thumbnail
     this.setThumbVisibility(false);
 
-    // Update chrome UI
+    // Update chrome UI — cross-fade already swapped caption/counter text,
+    // so just ensure it's correct for the new index and reset fade state.
     this.updateChromeContent();
+    this.chromeFadeSwapped = false;
+    if (this.chromeCaption) this.chromeCaption.style.opacity = '';
+    if (this.chromeCounter) this.chromeCounter.style.opacity = '';
 
     // Reset strip BEFORE recycling — recycleSlots creates a new adjacent slide
     // and appends it to the strip. If the strip still has its animation transform
@@ -1265,8 +1297,13 @@ export class Lightbox {
       img.style.clipPath = '';
     }
 
-    // Chrome follows backdrop opacity during open/close
-    this.chromeBaseOpacity = state.opacity;
+    // Chrome follows backdrop opacity during open/close.
+    // Accelerate fade-out on close so chrome disappears before the morph lands.
+    this.chromeBaseOpacity = this.state.isClosing
+      ? Math.pow(state.opacity, 2)
+      : state.opacity;
+    // Drift progress: 1 = fully offset toward origin, 0 = settled in place
+    this.chromeDriftProgress = 1 - state.opacity;
     this.updateChromeVisuals();
   }
 
@@ -1325,6 +1362,61 @@ export class Lightbox {
     if (this.stripEl) {
       this.stripEl.style.transform = offset ? `translateX(${offset}px)` : '';
     }
+    this.updateChromeFade(offset);
+  }
+
+  /**
+   * Cross-fade caption and counter as the strip slides between images.
+   * Opacity follows a V-curve: 1 → 0 at midpoint → 1.
+   * Text content swaps at the midpoint so the new caption fades in.
+   */
+  private updateChromeFade(offset: number): void {
+    if (this.gallery.length <= 1) return;
+
+    if (offset === 0) {
+      if (this.chromeCaption) this.chromeCaption.style.opacity = '';
+      if (this.chromeCounter) this.chromeCounter.style.opacity = '';
+      this.chromeFadeSwapped = false;
+      return;
+    }
+
+    const direction = offset < 0 ? 1 : -1;
+    const destIndex = this.currentIndex + direction;
+    const hasDestination = destIndex >= 0 && destIndex < this.gallery.length;
+
+    if (!hasDestination) return; // At edge (bounce) — don't fade
+
+    const slideWidth = window.innerWidth + SLIDE_GAP;
+    const progress = Math.min(1, Math.abs(offset) / slideWidth);
+    const fadeOpacity = Math.abs(1 - progress * 2);
+
+    // Swap text at midpoint
+    if (progress > 0.5 && !this.chromeFadeSwapped) {
+      this.chromeFadeSwapped = true;
+      const item = this.gallery[destIndex];
+      if (this.chromeCounter) {
+        this.chromeCounter.textContent = `${destIndex + 1}\u2009/\u2009${this.gallery.length}`;
+      }
+      if (this.chromeCaption) {
+        const cap = item?.caption || '';
+        this.chromeCaption.textContent = cap;
+        this.chromeCaption.style.display = cap ? '' : 'none';
+      }
+    } else if (progress <= 0.5 && this.chromeFadeSwapped) {
+      this.chromeFadeSwapped = false;
+      const item = this.gallery[this.currentIndex];
+      if (this.chromeCounter) {
+        this.chromeCounter.textContent = `${this.currentIndex + 1}\u2009/\u2009${this.gallery.length}`;
+      }
+      if (this.chromeCaption) {
+        const cap = item?.caption || '';
+        this.chromeCaption.textContent = cap;
+        this.chromeCaption.style.display = cap ? '' : 'none';
+      }
+    }
+
+    if (this.chromeCaption) this.chromeCaption.style.opacity = String(fadeOpacity);
+    if (this.chromeCounter) this.chromeCounter.style.opacity = String(fadeOpacity);
   }
 
   /**
@@ -2628,8 +2720,47 @@ export class Lightbox {
     }
   }
 
+  /**
+   * Compute per-element drift vectors from a thumbnail origin point.
+   * Each vector points from the element's resting position back toward the origin,
+   * scaled by CHROME_DRIFT. During animation, these are multiplied by chromeDriftProgress
+   * so elements appear to launch from / return to the thumbnail location.
+   */
+  private computeChromeDrift(originX: number, originY: number): void {
+    const CHROME_DRIFT = 0.05;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    // Approximate resting positions of each chrome element
+    const barPos = { x: vw / 2, y: vh - 16 };
+    const prevPos = { x: 36, y: vh / 2 };
+    const nextPos = { x: vw - 36, y: vh / 2 };
+
+    this.chromeDriftVectors = {
+      bar: {
+        x: (originX - barPos.x) * CHROME_DRIFT,
+        y: (originY - barPos.y) * CHROME_DRIFT,
+      },
+      prev: {
+        x: (originX - prevPos.x) * CHROME_DRIFT,
+        y: (originY - prevPos.y) * CHROME_DRIFT,
+      },
+      next: {
+        x: (originX - nextPos.x) * CHROME_DRIFT,
+        y: (originY - nextPos.y) * CHROME_DRIFT,
+      },
+    };
+  }
+
+  private resetChromeDrift(): void {
+    this.chromeDriftProgress = 0;
+    this.chromeDriftVectors = { bar: { x: 0, y: 0 }, prev: { x: 0, y: 0 }, next: { x: 0, y: 0 } };
+  }
+
   private animateChrome(target: number): void {
     this.stopChromeSpring();
+    // Reset drift — directional drift is only used during open/close morph
+    this.resetChromeDrift();
 
     const config = target === 1 ? this.opts.springOpen : this.opts.springClose;
     let lastTime = performance.now();
@@ -2657,25 +2788,29 @@ export class Lightbox {
     const opacity = this.chromeBaseOpacity;
     const interactive = opacity > 0.1 && zoom < 0.5;
 
-    // Slide chrome fully off viewport edges
+    // Slide chrome off viewport edges when zoomed
     const barY = zoom * 120;
     const arrowX = zoom * 100;
 
+    // Per-element directional drift toward/from thumbnail origin
+    const p = this.chromeDriftProgress;
+    const d = this.chromeDriftVectors;
+
     if (this.chromeBar) {
       this.chromeBar.style.opacity = String(opacity);
-      this.chromeBar.style.transform = `translateX(-50%) translateY(${barY}px)`;
+      this.chromeBar.style.transform = `translateX(calc(-50% + ${d.bar.x * p}px)) translateY(${barY + d.bar.y * p}px)`;
       this.chromeBar.style.pointerEvents = interactive ? '' : 'none';
     }
     if (this.chromePrev) {
       const prevScale = this.getPressScale(this.chromePrev);
       this.chromePrev.style.opacity = String(opacity);
-      this.chromePrev.style.transform = `translateY(-50%) translateX(${-arrowX}px) scale(${prevScale})`;
+      this.chromePrev.style.transform = `translateY(calc(-50% + ${d.prev.y * p}px)) translateX(${-arrowX + d.prev.x * p}px) scale(${prevScale})`;
       this.chromePrev.style.pointerEvents = interactive ? '' : 'none';
     }
     if (this.chromeNext) {
       const nextScale = this.getPressScale(this.chromeNext);
       this.chromeNext.style.opacity = String(opacity);
-      this.chromeNext.style.transform = `translateY(-50%) translateX(${arrowX}px) scale(${nextScale})`;
+      this.chromeNext.style.transform = `translateY(calc(-50% + ${d.next.y * p}px)) translateX(${arrowX + d.next.x * p}px) scale(${nextScale})`;
       this.chromeNext.style.pointerEvents = interactive ? '' : 'none';
     }
     if (this.chromeClose) {
