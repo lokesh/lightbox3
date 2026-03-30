@@ -202,7 +202,7 @@ export class Lightbox {
 
   // Scroll lock state
   private savedBodyOverflow: string = '';
-  private savedBodyPaddingRight: string = '';
+  private savedHtmlPaddingRight: string = '';
 
   // Wheel gesture state
   private wheelDismissY: number = 0;
@@ -1905,16 +1905,16 @@ export class Lightbox {
   private lockBodyScroll(): void {
     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
     this.savedBodyOverflow = document.body.style.overflow;
-    this.savedBodyPaddingRight = document.body.style.paddingRight;
+    this.savedHtmlPaddingRight = document.documentElement.style.paddingRight;
     document.body.style.overflow = 'hidden';
     if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
+      document.documentElement.style.paddingRight = `${scrollbarWidth}px`;
     }
   }
 
   private unlockBodyScroll(): void {
     document.body.style.overflow = this.savedBodyOverflow;
-    document.body.style.paddingRight = this.savedBodyPaddingRight;
+    document.documentElement.style.paddingRight = this.savedHtmlPaddingRight;
   }
 
   // ─── Wheel handling ────────────────────────────────────────
