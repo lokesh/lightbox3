@@ -1469,7 +1469,14 @@ export class Lightbox {
     return naturalWidth > fitRect.width * 1.05 || naturalHeight > fitRect.height * 1.05;
   }
 
-  private getZoomScale(): number {
+  private getTapZoomScale(): number {
+    const { fitRect, naturalWidth } = this.zoom;
+    const nativeScale = naturalWidth / fitRect.width;
+    // 3× fit ensures a perceptible jump; cap at native so we never upscale
+    return Math.min(Math.max(nativeScale, 2), 3);
+  }
+
+  private getMaxZoomScale(): number {
     const { fitRect, naturalWidth } = this.zoom;
     const nativeScale = naturalWidth / fitRect.width;
     return Math.max(nativeScale, 2);
@@ -1484,7 +1491,7 @@ export class Lightbox {
     this.animateChrome(1);
 
     const { fitRect } = this.zoom;
-    const targetScale = this.getZoomScale();
+    const targetScale = this.getTapZoomScale();
 
     const imgCenterX = fitRect.x + fitRect.width / 2;
     const imgCenterY = fitRect.y + fitRect.height / 2;
@@ -2176,7 +2183,7 @@ export class Lightbox {
   private wheelZoomTo(targetScale: number, clientX: number, clientY: number): void {
     if (!this.imgEl) return;
 
-    const maxScale = this.getZoomScale();
+    const maxScale = this.getMaxZoomScale();
     const newScale = clamp(targetScale, 1, maxScale);
 
     // If zooming to ~1, zoom out fully
@@ -2363,7 +2370,7 @@ export class Lightbox {
     const midY = (p1.clientY + p2.clientY) / 2;
 
     const ratio = dist / this.pinch.initialDistance;
-    const maxScale = this.getZoomScale();
+    const maxScale = this.getMaxZoomScale();
 
     let newScale = this.pinch.initialScale * ratio;
     // Rubber-band past min/max
@@ -2408,7 +2415,7 @@ export class Lightbox {
     this.pinch.active = false;
     this.zoom.dragMoved = true; // Suppress the click that follows
 
-    const maxScale = this.getZoomScale();
+    const maxScale = this.getMaxZoomScale();
 
     if (this.zoom.scale < 1) {
       // Snap back to 1 (opened state)
