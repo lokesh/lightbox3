@@ -1209,6 +1209,7 @@ export class Lightbox {
     onComplete: () => void,
     earlyComplete?: (current: AnimState) => boolean,
     initialVelocities?: Partial<AnimState>,
+    configOverrides?: Partial<Record<keyof AnimState, SpringConfig>>,
   ): void {
     this.stopSpring();
 
@@ -1217,34 +1218,40 @@ export class Lightbox {
 
     // One spring per animated property
     const springs: {
-      key: string;
+      key: keyof AnimState;
       state: SpringState;
       target: number;
+      config: SpringConfig;
     }[] = [
       {
         key: 'translateX',
         state: { position: from.translateX, velocity: initialVelocities?.translateX ?? 0 },
         target: to.translateX,
+        config: configOverrides?.translateX ?? config,
       },
       {
         key: 'translateY',
         state: { position: from.translateY, velocity: initialVelocities?.translateY ?? 0 },
         target: to.translateY,
+        config: configOverrides?.translateY ?? config,
       },
       {
         key: 'scale',
         state: { position: from.scale, velocity: initialVelocities?.scale ?? 0 },
         target: to.scale,
+        config: configOverrides?.scale ?? config,
       },
       {
         key: 'opacity',
         state: { position: from.opacity, velocity: initialVelocities?.opacity ?? 0 },
         target: to.opacity,
+        config: configOverrides?.opacity ?? config,
       },
       {
         key: 'crop',
         state: { position: from.crop, velocity: initialVelocities?.crop ?? 0 },
         target: to.crop,
+        config: configOverrides?.crop ?? config,
       },
     ];
 
@@ -1261,7 +1268,7 @@ export class Lightbox {
       const current: Record<string, number> = {};
 
       for (const s of springs) {
-        const result = springStep(config, s.state, s.target, dt);
+        const result = springStep(s.config, s.state, s.target, dt);
         s.state = result;
         current[s.key] = result.position;
         if (!result.settled) allSettled = false;
@@ -1968,6 +1975,21 @@ export class Lightbox {
       Math.abs(s.translateX - flipX) < 20 &&
       Math.abs(s.translateY - flipY) < 20;
 
+    // Parabolic arc: the axis with more velocity gets a softer spring,
+    // so momentum carries it further while the cross-axis converges first.
+    // This produces a natural curved path toward the thumbnail.
+    const base = this.opts.springClose;
+    const absVx = Math.abs(velocityX);
+    const absVy = Math.abs(velocityY);
+    const vRatio = Math.max(absVx, absVy) / (Math.min(absVx, absVy) || 1);
+    let dismissConfigs: Partial<Record<keyof AnimState, SpringConfig>> | undefined;
+    if (vRatio > 1.5 && Math.max(absVx, absVy) > 100) {
+      const soft = { ...base, stiffness: base.stiffness * 0.55, damping: base.damping * 0.85 };
+      dismissConfigs = absVy > absVx
+        ? { translateY: soft }
+        : { translateX: soft };
+    }
+
     this.animateSpring(
       { translateX: offsetX, translateY: offsetY, scale, opacity, crop: 0 },
       { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0 },
@@ -1975,6 +1997,7 @@ export class Lightbox {
       () => this.finishClose(),
       atThumbnail,
       { translateX: velocityX, translateY: velocityY },
+      dismissConfigs,
     );
   }
 
