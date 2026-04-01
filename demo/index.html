@@ -39,42 +39,50 @@
       margin: 48px 0 16px;
     }
 
-    .gallery {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
+    h2:first-of-type {
+      margin-top: 0;
+    }
+
+    p.description {
+      color: #888;
+      margin: -8px 0 16px;
+      font-size: 0.95rem;
+    }
+
+    .image-row {
+      display: flex;
       gap: 8px;
     }
 
-    .gallery a {
+    .image-row a {
       display: block;
-      border-radius: 0;
       overflow: hidden;
-      aspect-ratio: 4 / 3;
+      aspect-ratio: 1 / 1;
       background: #1a1a1a;
+      width: 200px;
     }
 
-    .gallery img {
+    .image-row img {
       width: 100%;
       height: 100%;
       object-fit: cover;
       display: block;
     }
 
-    .single-image {
+    .gallery {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 8px;
     }
 
-    .single-image a {
+    .gallery a {
       display: block;
-      border-radius: 0;
       overflow: hidden;
-      aspect-ratio: 4 / 3;
+      aspect-ratio: 1 / 1;
       background: #1a1a1a;
     }
 
-    .single-image img {
+    .gallery img {
       width: 100%;
       height: 100%;
       object-fit: cover;
@@ -102,123 +110,88 @@
 </head>
 <body>
   <h1>Lightbox3</h1>
-  <p class="subtitle">Click any thumbnail. Spring-animated zoom. Click or press Esc to close.</p>
+  <p class="subtitle">Click any thumbnail or link. Spring-animated zoom. Click or press Esc to close.</p>
 
+  <!-- ——— Two individual images ——— -->
+  <h2>Two Individual Images</h2>
+  <p class="description">Each image opens independently.</p>
+  <div class="image-row">
+    <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-1.jpg" data-lightbox>
+      <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-1.jpg" alt="Girl looking out at people on beach">
+    </a>
+    <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-2.jpg" data-lightbox data-caption="Optional caption.">
+      <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-2.jpg" alt="Two men in bicycle jerseys sitting outside at a table having coffee">
+    </a>
+  </div>
+
+  <!-- ——— Four image set ——— -->
+  <h2>Four Image Set</h2>
+  <p class="description">Grouped as a navigable gallery. Use arrows or swipe to browse.</p>
+  <div class="gallery">
+    <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-3.jpg" data-lightbox="gallery-1" data-caption="Click the right half of the image to move forward.">
+      <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-3.jpg" alt="Golden Gate Bridge with San Francisco in distance">
+    </a>
+    <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-4.jpg" data-lightbox="gallery-1" data-caption="Or press the right arrow on your keyboard.">
+      <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-4.jpg" alt="Forest with mountains behind">
+    </a>
+    <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-5.jpg" data-lightbox="gallery-1" data-caption="The next image in the set is preloaded as you're viewing.">
+      <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-5.jpg" alt="Bicyclist looking out over hill at ocean">
+    </a>
+    <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-6.jpg" data-lightbox="gallery-1" data-caption="Click anywhere outside the image or the X to the right to close.">
+      <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-6.jpg" alt="Small lighthouse at bottom with ocean behind">
+    </a>
+  </div>
+
+  <!-- ——— Large gallery ——— -->
+  <h2>Large Gallery</h2>
+  <p class="description">A 24-image gallery to test navigation and preloading at scale.</p>
+  <div class="gallery">
+    <a href="https://images.unsplash.com/photo-1682687220742-aba13b6e50ba?w=2400&q=80" data-lightbox="large-gallery" data-caption="Antelope Canyon light beams"><img src="https://images.unsplash.com/photo-1682687220742-aba13b6e50ba?w=400&h=400&fit=crop&q=80" alt="Antelope Canyon light beams"></a>
+    <a href="https://images.unsplash.com/photo-1682695797221-8164ff1fafc9?w=2400&q=80" data-lightbox="large-gallery" data-caption="Mountain lake reflection"><img src="https://images.unsplash.com/photo-1682695797221-8164ff1fafc9?w=400&h=400&fit=crop&q=80" alt="Mountain lake reflection"></a>
+    <a href="https://images.unsplash.com/photo-1470813740244-df37b8c1edcb?w=2400&q=80" data-lightbox="large-gallery" data-caption="Starry night sky"><img src="https://images.unsplash.com/photo-1470813740244-df37b8c1edcb?w=400&h=400&fit=crop&q=80" alt="Starry night sky"></a>
+    <a href="https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=2400&q=80" data-lightbox="large-gallery" data-caption="Lake with autumn trees"><img src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=400&h=400&fit=crop&q=80" alt="Lake with autumn trees"></a>
+    <a href="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Sunlit mountain valley"><img src="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=400&h=400&fit=crop&q=80" alt="Sunlit mountain valley"></a>
+    <a href="https://images.unsplash.com/photo-1426604966848-d7adac402bff?w=2400&q=80" data-lightbox="large-gallery" data-caption="Evergreen forest river"><img src="https://images.unsplash.com/photo-1426604966848-d7adac402bff?w=400&h=400&fit=crop&q=80" alt="Evergreen forest river"></a>
+    <a href="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Tropical beach"><img src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=400&fit=crop&q=80" alt="Tropical beach"></a>
+    <a href="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=2400&q=80" data-lightbox="large-gallery" data-caption="Snow-capped peaks at night"><img src="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=400&fit=crop&q=80" alt="Snow-capped peaks at night"></a>
+    <a href="https://images.unsplash.com/photo-1504198453319-5ce911bafcde?w=2400&q=80" data-lightbox="large-gallery" data-caption="Desert sand dunes"><img src="https://images.unsplash.com/photo-1504198453319-5ce911bafcde?w=400&h=400&fit=crop&q=80" alt="Desert sand dunes"></a>
+    <a href="https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Alpine meadow"><img src="https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=400&h=400&fit=crop&q=80" alt="Alpine meadow"></a>
+    <a href="https://images.unsplash.com/photo-1518173946687-a1e0e2a9eec0?w=2400&q=80" data-lightbox="large-gallery" data-caption="Ocean cliffs at sunset"><img src="https://images.unsplash.com/photo-1518173946687-a1e0e2a9eec0?w=400&h=400&fit=crop&q=80" alt="Ocean cliffs at sunset"></a>
+    <a href="https://images.unsplash.com/photo-1465056836900-8f1e940b3fc8?w=2400&q=80" data-lightbox="large-gallery" data-caption="Northern lights"><img src="https://images.unsplash.com/photo-1465056836900-8f1e940b3fc8?w=400&h=400&fit=crop&q=80" alt="Northern lights"></a>
+    <a href="https://images.unsplash.com/photo-1505567745926-ba89000d255a?w=2400&q=80" data-lightbox="large-gallery" data-caption="Volcanic landscape"><img src="https://images.unsplash.com/photo-1505567745926-ba89000d255a?w=400&h=400&fit=crop&q=80" alt="Volcanic landscape"></a>
+    <a href="https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=2400&q=80" data-lightbox="large-gallery" data-caption="Sunset over the sea"><img src="https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=400&h=400&fit=crop&q=80" alt="Sunset over the sea"></a>
+    <a href="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=2400&q=80" data-lightbox="large-gallery" data-caption="Jagged mountain peaks"><img src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=400&fit=crop&q=80" alt="Jagged mountain peaks"></a>
+    <a href="https://images.unsplash.com/photo-1473773508845-188df298d2d1?w=2400&q=80" data-lightbox="large-gallery" data-caption="Misty forest path"><img src="https://images.unsplash.com/photo-1473773508845-188df298d2d1?w=400&h=400&fit=crop&q=80" alt="Misty forest path"></a>
+    <a href="https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=2400&q=80" data-lightbox="large-gallery" data-caption="Calm lake at dawn"><img src="https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=400&h=400&fit=crop&q=80" alt="Calm lake at dawn"></a>
+    <a href="https://images.unsplash.com/photo-1494500764479-0c8f2919a3d8?w=2400&q=80" data-lightbox="large-gallery" data-caption="Autumn birch forest"><img src="https://images.unsplash.com/photo-1494500764479-0c8f2919a3d8?w=400&h=400&fit=crop&q=80" alt="Autumn birch forest"></a>
+    <a href="https://images.unsplash.com/photo-1485470733090-0aae1788d668?w=2400&q=80" data-lightbox="large-gallery" data-caption="Rolling green hills"><img src="https://images.unsplash.com/photo-1485470733090-0aae1788d668?w=400&h=400&fit=crop&q=80" alt="Rolling green hills"></a>
+    <a href="https://images.unsplash.com/photo-1491002052546-bf38f186af56?w=2400&q=80" data-lightbox="large-gallery" data-caption="Waterfall in jungle"><img src="https://images.unsplash.com/photo-1491002052546-bf38f186af56?w=400&h=400&fit=crop&q=80" alt="Waterfall in jungle"></a>
+    <a href="https://images.unsplash.com/photo-1490682143684-14369e18dce8?w=2400&q=80" data-lightbox="large-gallery" data-caption="Fjord at blue hour"><img src="https://images.unsplash.com/photo-1490682143684-14369e18dce8?w=400&h=400&fit=crop&q=80" alt="Fjord at blue hour"></a>
+    <a href="https://images.unsplash.com/photo-1505144808419-1957a94ca61e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Turquoise ocean waves"><img src="https://images.unsplash.com/photo-1505144808419-1957a94ca61e?w=400&h=400&fit=crop&q=80" alt="Turquoise ocean waves"></a>
+    <a href="https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=2400&q=80" data-lightbox="large-gallery" data-caption="Sunlight through palms"><img src="https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=400&h=400&fit=crop&q=80" alt="Sunlight through palms"></a>
+    <a href="https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Mountain silhouette at dusk"><img src="https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=400&h=400&fit=crop&q=80" alt="Mountain silhouette at dusk"></a>
+  </div>
+
+  <!-- ——— Text links ——— -->
   <h2>Text Links</h2>
+  <p class="description">Links without thumbnails open with a fade instead of a morph.</p>
   <div class="text-links">
     <ul>
-      <li><a href="https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=2400&q=80" data-lightbox>Yosemite Valley at sunrise</a></li>
-      <li><a href="https://images.unsplash.com/photo-1431576901776-e539bd916ba2?w=2400&q=80" data-lightbox>Golden glass towers</a></li>
-      <li><a href="https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=2400&q=80" data-lightbox>Fairy Glen sunset spiral</a></li>
+      <li><a href="https://images.unsplash.com/photo-1542224566-6e85f2e6772f?w=2400&q=80" data-lightbox>Cherry blossoms in bloom</a></li>
+      <li><a href="https://images.unsplash.com/photo-1516298773066-dec6da0e0cb7?w=2400&q=80" data-lightbox>Coral reef underwater</a></li>
+      <li><a href="https://images.unsplash.com/photo-1534067783941-51c9c23ecefd?w=2400&q=80" data-lightbox>Lightning over the plains</a></li>
     </ul>
   </div>
 
+  <!-- ——— Text link gallery ——— -->
   <h2>Text Links — Gallery</h2>
+  <p class="description">Text links grouped as a navigable set.</p>
   <div class="text-links">
     <ul>
-      <li><a href="https://images.unsplash.com/photo-1433086966358-54859d0ed716?w=2400&q=80" data-lightbox="text-gallery" data-caption="Multnomah Falls">Multnomah Falls</a></li>
-      <li><a href="https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=2400&q=80" data-lightbox="text-gallery" data-caption="Misty green highlands at dawn">Misty green highlands at dawn</a></li>
-      <li><a href="https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=2400&q=80" data-lightbox="text-gallery" data-caption="Forest bridge walkway">Forest bridge walkway</a></li>
+      <li><a href="https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=2400&q=80" data-lightbox="text-gallery" data-caption="Lavender fields at sunset">Lavender fields at sunset</a></li>
+      <li><a href="https://images.unsplash.com/photo-1504700610630-ac6edd918cc0?w=2400&q=80" data-lightbox="text-gallery" data-caption="Hot air balloons over valley">Hot air balloons over valley</a></li>
+      <li><a href="https://images.unsplash.com/photo-1520962880247-cfaf541c8724?w=2400&q=80" data-lightbox="text-gallery" data-caption="Rice terraces from above">Rice terraces from above</a></li>
     </ul>
-  </div>
-
-  <h2>Single Image</h2>
-  <div class="single-image">
-    <a href="https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=2400&q=80" data-lightbox data-caption="Forest bridge walkway">
-      <img src="https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=400&h=300&fit=crop&q=80" alt="Forest bridge walkway">
-    </a>
-  </div>
-
-  <h2>Gallery — Nature</h2>
-  <div class="gallery">
-    <a href="https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=2400&q=80" data-lightbox="nature" data-caption="Yosemite Valley at sunrise">
-      <img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=400&h=300&fit=crop&q=80" alt="Yosemite Valley at sunrise">
-    </a>
-    <a href="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=2400&q=80" data-lightbox="nature" data-caption="Mountain ridgeline with sunrays piercing through the clouds — one of those fleeting moments where the light does something extraordinary and you just have to stop and take it in">
-      <img src="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=400&h=300&fit=crop&q=80" alt="Mountain ridgeline with sunrays">
-    </a>
-    <a href="https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=2400&q=80" data-lightbox="nature" data-caption="Fairy Glen sunset spiral, Isle of Skye, Scotland. The ancient stone spiral sits in a natural amphitheatre of grassy mounds and miniature hills that locals have long associated with fairy folklore. Late evening light catches the concentric rings just right, turning the whole glen golden for a few minutes before dusk settles in.">
-      <img src="https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=400&h=300&fit=crop&q=80" alt="Fairy Glen sunset">
-    </a>
-    <a href="https://images.unsplash.com/photo-1433086966358-54859d0ed716?w=2400&q=80" data-lightbox="nature" data-caption="Multnomah Falls">
-      <img src="https://images.unsplash.com/photo-1433086966358-54859d0ed716?w=400&h=300&fit=crop&q=80" alt="Multnomah Falls">
-    </a>
-    <a href="https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=2400&q=80" data-lightbox="nature" data-caption="Misty green highlands at dawn">
-      <img src="https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&h=300&fit=crop&q=80" alt="Misty green highlands">
-    </a>
-    <a href="https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=2400&q=80" data-lightbox="nature">
-      <img src="https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=400&h=300&fit=crop&q=80" alt="Forest bridge walkway">
-    </a>
-  </div>
-
-  <h2>Gallery — Architecture</h2>
-  <div class="gallery">
-    <a href="https://images.unsplash.com/photo-1431576901776-e539bd916ba2?w=2400&q=80" data-lightbox="architecture" data-caption="Golden glass towers">
-      <img src="https://images.unsplash.com/photo-1431576901776-e539bd916ba2?w=400&h=300&fit=crop&q=80" alt="Golden glass towers">
-    </a>
-    <a href="https://images.unsplash.com/photo-1487958449943-2429e8be8625?w=2400&q=80" data-lightbox="architecture" data-caption="White angular modern building">
-      <img src="https://images.unsplash.com/photo-1487958449943-2429e8be8625?w=400&h=300&fit=crop&q=80" alt="White angular building">
-    </a>
-    <a href="https://images.unsplash.com/photo-1488972685288-c3fd157d7c7a?w=2400&q=80" data-lightbox="architecture" data-caption="Geometric facade angles">
-      <img src="https://images.unsplash.com/photo-1488972685288-c3fd157d7c7a?w=400&h=300&fit=crop&q=80" alt="Geometric facade">
-    </a>
-    <a href="https://images.unsplash.com/photo-1479839672679-a46483c0e7c8?w=2400&q=80" data-lightbox="architecture" data-caption="White minimalist cubes">
-      <img src="https://images.unsplash.com/photo-1479839672679-a46483c0e7c8?w=400&h=300&fit=crop&q=80" alt="White minimalist building">
-    </a>
-  </div>
-
-  <h2>Gallery — 50 Images</h2>
-  <div class="gallery">
-    <a href="https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=2400&q=80" data-lightbox="fifty" data-caption="Lake reflection at golden hour"><img src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=400&h=300&fit=crop&q=80" alt="Lake reflection at golden hour"></a>
-    <a href="https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?w=2400&q=80" data-lightbox="fifty" data-caption="Golden wheat field at sunset"><img src="https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?w=400&h=300&fit=crop&q=80" alt="Golden wheat field at sunset"></a>
-    <a href="https://images.unsplash.com/photo-1505144808419-1957a94ca61e?w=2400&q=80" data-lightbox="fifty" data-caption="Tropical beach aerial"><img src="https://images.unsplash.com/photo-1505144808419-1957a94ca61e?w=400&h=300&fit=crop&q=80" alt="Tropical beach aerial"></a>
-    <a href="https://images.unsplash.com/photo-1439853949127-fa647821eba0?w=2400&q=80" data-lightbox="fifty" data-caption="Turquoise ocean wave"><img src="https://images.unsplash.com/photo-1439853949127-fa647821eba0?w=400&h=300&fit=crop&q=80" alt="Turquoise ocean wave"></a>
-    <a href="https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=2400&q=80" data-lightbox="fifty" data-caption="Mountain lake with pine trees"><img src="https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=400&h=300&fit=crop&q=80" alt="Mountain lake with pine trees"></a>
-    <a href="https://images.unsplash.com/photo-1465056836900-8f1e940f1eac?w=2400&q=80" data-lightbox="fifty" data-caption="Purple lavender field"><img src="https://images.unsplash.com/photo-1465056836900-8f1e940f1eac?w=400&h=300&fit=crop&q=80" alt="Purple lavender field"></a>
-    <a href="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=2400&q=80" data-lightbox="fifty" data-caption="White sand beach with turquoise water"><img src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=300&fit=crop&q=80" alt="White sand beach with turquoise water"></a>
-    <a href="https://images.unsplash.com/photo-1491002052546-bf38f186af56?w=2400&q=80" data-lightbox="fifty" data-caption="Snowy mountain peaks"><img src="https://images.unsplash.com/photo-1491002052546-bf38f186af56?w=400&h=300&fit=crop&q=80" alt="Snowy mountain peaks"></a>
-    <a href="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=2400&q=80" data-lightbox="fifty" data-caption="Sunlight through forest canopy"><img src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=300&fit=crop&q=80" alt="Sunlight through forest canopy"></a>
-    <a href="https://images.unsplash.com/photo-1504567961542-e24d9439a724?w=2400&q=80" data-lightbox="fifty" data-caption="Cherry blossoms in spring"><img src="https://images.unsplash.com/photo-1504567961542-e24d9439a724?w=400&h=300&fit=crop&q=80" alt="Cherry blossoms in spring"></a>
-    <a href="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=2400&q=80" data-lightbox="fifty" data-caption="Dramatic mountain ridgeline"><img src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=300&fit=crop&q=80" alt="Dramatic mountain ridgeline"></a>
-    <a href="https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?w=2400&q=80" data-lightbox="fifty" data-caption="Pine trees and mountain mist"><img src="https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?w=400&h=300&fit=crop&q=80" alt="Pine trees and mountain mist"></a>
-    <a href="https://images.unsplash.com/photo-1518173946687-a1e0e2a8b205?w=2400&q=80" data-lightbox="fifty" data-caption="Desert sand dunes"><img src="https://images.unsplash.com/photo-1518173946687-a1e0e2a8b205?w=400&h=300&fit=crop&q=80" alt="Desert sand dunes"></a>
-    <a href="https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=2400&q=80" data-lightbox="fifty" data-caption="Lake boat with mountain backdrop"><img src="https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=400&h=300&fit=crop&q=80" alt="Lake boat with mountain backdrop"></a>
-    <a href="https://images.unsplash.com/photo-1418065460487-3e41a6c84dc5?w=2400&q=80" data-lightbox="fifty" data-caption="Foggy forest trail"><img src="https://images.unsplash.com/photo-1418065460487-3e41a6c84dc5?w=400&h=300&fit=crop&q=80" alt="Foggy forest trail"></a>
-    <a href="https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=2400&q=80" data-lightbox="fifty" data-caption="Rolling green hills"><img src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=400&h=300&fit=crop&q=80" alt="Rolling green hills"></a>
-    <a href="https://images.unsplash.com/photo-1485470733090-0aae1788d668?w=2400&q=80" data-lightbox="fifty" data-caption="Northern lights over lake"><img src="https://images.unsplash.com/photo-1485470733090-0aae1788d668?w=400&h=300&fit=crop&q=80" alt="Northern lights over lake"></a>
-    <a href="https://images.unsplash.com/photo-1494500764479-0c8f2919a3d8?w=2400&q=80" data-lightbox="fifty" data-caption="Autumn forest road"><img src="https://images.unsplash.com/photo-1494500764479-0c8f2919a3d8?w=400&h=300&fit=crop&q=80" alt="Autumn forest road"></a>
-    <a href="https://images.unsplash.com/photo-1490682143684-14369e18dce8?w=2400&q=80" data-lightbox="fifty" data-caption="Glacier lake with icebergs"><img src="https://images.unsplash.com/photo-1490682143684-14369e18dce8?w=400&h=300&fit=crop&q=80" alt="Glacier lake with icebergs"></a>
-    <a href="https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=2400&q=80" data-lightbox="fifty" data-caption="Sunset over calm ocean"><img src="https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=400&h=300&fit=crop&q=80" alt="Sunset over calm ocean"></a>
-    <a href="https://images.unsplash.com/photo-1429277005502-eed8e872fe52?w=2400&q=80" data-lightbox="fifty" data-caption="Wildflower meadow"><img src="https://images.unsplash.com/photo-1429277005502-eed8e872fe52?w=400&h=300&fit=crop&q=80" alt="Wildflower meadow"></a>
-    <a href="https://images.unsplash.com/photo-1504198453319-5ce911bafcde?w=2400&q=80" data-lightbox="fifty" data-caption="Starry night sky"><img src="https://images.unsplash.com/photo-1504198453319-5ce911bafcde?w=400&h=300&fit=crop&q=80" alt="Starry night sky"></a>
-    <a href="https://images.unsplash.com/photo-1497436072909-60f360e1d4b1?w=2400&q=80" data-lightbox="fifty" data-caption="Verdant valley river"><img src="https://images.unsplash.com/photo-1497436072909-60f360e1d4b1?w=400&h=300&fit=crop&q=80" alt="Verdant valley river"></a>
-    <a href="https://images.unsplash.com/photo-1475924156734-496f6cac6ec1?w=2400&q=80" data-lightbox="fifty" data-caption="Misty mountain sunrise"><img src="https://images.unsplash.com/photo-1475924156734-496f6cac6ec1?w=400&h=300&fit=crop&q=80" alt="Misty mountain sunrise"></a>
-    <a href="https://images.unsplash.com/photo-1444464666168-49d633b86797?w=2400&q=80" data-lightbox="fifty" data-caption="Bird soaring over mountains"><img src="https://images.unsplash.com/photo-1444464666168-49d633b86797?w=400&h=300&fit=crop&q=80" alt="Bird soaring over mountains"></a>
-    <a href="https://images.unsplash.com/photo-1501854140801-50d01698950b?w=2400&q=80" data-lightbox="fifty" data-caption="Aerial view of green forest"><img src="https://images.unsplash.com/photo-1501854140801-50d01698950b?w=400&h=300&fit=crop&q=80" alt="Aerial view of green forest"></a>
-    <a href="https://images.unsplash.com/photo-1470770903676-69b98201ea1c?w=2400&q=80" data-lightbox="fifty" data-caption="Valley fog at dawn"><img src="https://images.unsplash.com/photo-1470770903676-69b98201ea1c?w=400&h=300&fit=crop&q=80" alt="Valley fog at dawn"></a>
-    <a href="https://images.unsplash.com/photo-1510784722466-f2aa9c52fff6?w=2400&q=80" data-lightbox="fifty" data-caption="Snowy cabin in the woods"><img src="https://images.unsplash.com/photo-1510784722466-f2aa9c52fff6?w=400&h=300&fit=crop&q=80" alt="Snowy cabin in the woods"></a>
-    <a href="https://images.unsplash.com/photo-1504700610630-ac6uj79p9898?w=2400&q=80" data-lightbox="fifty" data-caption="Tropical waterfall"><img src="https://images.unsplash.com/photo-1504700610630-ac6uj79p9898?w=400&h=300&fit=crop&q=80" alt="Tropical waterfall"></a>
-    <a href="https://images.unsplash.com/photo-1468276311594-df7cb65d8df6?w=2400&q=80" data-lightbox="fifty" data-caption="Milky Way over desert"><img src="https://images.unsplash.com/photo-1468276311594-df7cb65d8df6?w=400&h=300&fit=crop&q=80" alt="Milky Way over desert"></a>
-    <a href="https://images.unsplash.com/photo-1504870712357-65ea720d6078?w=2400&q=80" data-lightbox="fifty" data-caption="Rocky coastal cliffs"><img src="https://images.unsplash.com/photo-1504870712357-65ea720d6078?w=400&h=300&fit=crop&q=80" alt="Rocky coastal cliffs"></a>
-    <a href="https://images.unsplash.com/photo-1486870591958-9b9d0d1dda99?w=2400&q=80" data-lightbox="fifty" data-caption="Alpine peak above the clouds"><img src="https://images.unsplash.com/photo-1486870591958-9b9d0d1dda99?w=400&h=300&fit=crop&q=80" alt="Alpine peak above the clouds"></a>
-    <a href="https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=2400&q=80" data-lightbox="fifty" data-caption="Sunlit tree canopy"><img src="https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=400&h=300&fit=crop&q=80" alt="Sunlit tree canopy"></a>
-    <a href="https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=2400&q=80" data-lightbox="fifty" data-caption="Glacial blue river"><img src="https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=400&h=300&fit=crop&q=80" alt="Glacial blue river"></a>
-    <a href="https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=2400&q=80" data-lightbox="fifty" data-caption="Sunbeams through palm leaves"><img src="https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=400&h=300&fit=crop&q=80" alt="Sunbeams through palm leaves"></a>
-    <a href="https://images.unsplash.com/photo-1509023464722-18d996393ca8?w=2400&q=80" data-lightbox="fifty" data-caption="Dark storm clouds"><img src="https://images.unsplash.com/photo-1509023464722-18d996393ca8?w=400&h=300&fit=crop&q=80" alt="Dark storm clouds"></a>
-    <a href="https://images.unsplash.com/photo-1484591974057-265bb767ef71?w=2400&q=80" data-lightbox="fifty" data-caption="Calm river through canyon"><img src="https://images.unsplash.com/photo-1484591974057-265bb767ef71?w=400&h=300&fit=crop&q=80" alt="Calm river through canyon"></a>
-    <a href="https://images.unsplash.com/photo-1470813740244-e753b71a8f40?w=2400&q=80" data-lightbox="fifty" data-caption="Ocean waves from above"><img src="https://images.unsplash.com/photo-1470813740244-e753b71a8f40?w=400&h=300&fit=crop&q=80" alt="Ocean waves from above"></a>
-    <a href="https://images.unsplash.com/photo-1511497584788-876760111969?w=2400&q=80" data-lightbox="fifty" data-caption="Foggy spruce forest"><img src="https://images.unsplash.com/photo-1511497584788-876760111969?w=400&h=300&fit=crop&q=80" alt="Foggy spruce forest"></a>
-    <a href="https://images.unsplash.com/photo-1498496294664-d9372eb521f3?w=2400&q=80" data-lightbox="fifty" data-caption="Cotton candy clouds"><img src="https://images.unsplash.com/photo-1498496294664-d9372eb521f3?w=400&h=300&fit=crop&q=80" alt="Cotton candy clouds"></a>
-    <a href="https://images.unsplash.com/photo-1414609245224-afa02bfb3fda?w=2400&q=80" data-lightbox="fifty" data-caption="Mountain reflection in still water"><img src="https://images.unsplash.com/photo-1414609245224-afa02bfb3fda?w=400&h=300&fit=crop&q=80" alt="Mountain reflection in still water"></a>
-    <a href="https://images.unsplash.com/photo-1500964757637-c85e8a162699?w=2400&q=80" data-lightbox="fifty" data-caption="Golden hills at dusk"><img src="https://images.unsplash.com/photo-1500964757637-c85e8a162699?w=400&h=300&fit=crop&q=80" alt="Golden hills at dusk"></a>
-    <a href="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=2400&q=80" data-lightbox="fifty" data-caption="Starlit snowy mountains"><img src="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=300&fit=crop&q=80" alt="Starlit snowy mountains"></a>
-    <a href="https://images.unsplash.com/photo-1473448912268-2022ce9509d8?w=2400&q=80" data-lightbox="fifty" data-caption="Autumn canopy from below"><img src="https://images.unsplash.com/photo-1473448912268-2022ce9509d8?w=400&h=300&fit=crop&q=80" alt="Autumn canopy from below"></a>
-    <a href="https://images.unsplash.com/photo-1482784160681-29dafb31a4a2?w=2400&q=80" data-lightbox="fifty" data-caption="Dramatic sunset clouds"><img src="https://images.unsplash.com/photo-1482784160681-29dafb31a4a2?w=400&h=300&fit=crop&q=80" alt="Dramatic sunset clouds"></a>
-    <a href="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=2400&q=80" data-lightbox="fifty" data-caption="Mountain sunrays"><img src="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=400&h=300&fit=crop&q=80" alt="Mountain sunrays"></a>
-    <a href="https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=2400&q=80" data-lightbox="fifty" data-caption="Fairy Glen sunset"><img src="https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=400&h=300&fit=crop&q=80" alt="Fairy Glen sunset"></a>
-    <a href="https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=2400&q=80" data-lightbox="fifty" data-caption="Yosemite Valley"><img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=400&h=300&fit=crop&q=80" alt="Yosemite Valley"></a>
-    <a href="https://images.unsplash.com/photo-1433086966358-54859d0ed716?w=2400&q=80" data-lightbox="fifty" data-caption="Multnomah Falls"><img src="https://images.unsplash.com/photo-1433086966358-54859d0ed716?w=400&h=300&fit=crop&q=80" alt="Multnomah Falls"></a>
-    <a href="https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=2400&q=80" data-lightbox="fifty" data-caption="Misty highlands"><img src="https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&h=300&fit=crop&q=80" alt="Misty highlands"></a>
   </div>
 
   <script type="module" src="/dist/lightbox3.esm.js"></script>
