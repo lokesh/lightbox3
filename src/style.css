@@ -12,7 +12,7 @@
 .lightbox3-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.92);
+  background: rgba(0, 0, 0, 0.90);
   cursor: pointer;
 }
 
@@ -75,8 +75,9 @@
   -webkit-backdrop-filter: blur(20px);
   border-radius: 999px;
   color: rgba(255, 255, 255, 0.9);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   line-height: 1;
   user-select: none;
   pointer-events: none;
@@ -92,8 +93,7 @@
 .lightbox3-counter {
   color: rgba(255, 255, 255, 0.45);
   font-variant-numeric: tabular-nums;
-  font-size: 13px;
-  letter-spacing: 0.02em;
+  font-size: 14px;
 }
 
 .lightbox3-caption {
@@ -109,13 +109,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border: none;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 50%;
-  color: rgba(255, 255, 255, 0.75);
+  color: #fff;
   cursor: pointer;
   pointer-events: auto;
   flex-shrink: 0;
@@ -124,12 +124,11 @@
 
 .lightbox3-close:hover {
   background: rgba(255, 255, 255, 0.16);
-  color: rgba(255, 255, 255, 0.95);
 }
 
 .lightbox3-close svg {
-  width: 14px;
-  height: 14px;
+  width: 22px;
+  height: 22px;
 }
 
 .lightbox3-arrow {
@@ -139,15 +138,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   padding: 0;
   border: none;
-  background: rgba(24, 24, 24, 0.65);
+  background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-radius: 50%;
-  color: rgba(255, 255, 255, 0.75);
+  color: #fff;
   cursor: pointer;
   pointer-events: auto;
   z-index: 1;
@@ -155,13 +154,12 @@
 }
 
 .lightbox3-arrow:hover {
-  background: rgba(24, 24, 24, 0.85);
-  color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .lightbox3-arrow svg {
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
 }
 
 .lightbox3-arrow-prev {
@@ -181,7 +179,7 @@
     bottom: 12px;
     gap: 10px;
     padding: 5px 5px 5px 14px;
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .lightbox3-chrome--minimal {
@@ -189,13 +187,13 @@
   }
 
   .lightbox3-close {
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
   }
 
   .lightbox3-close svg {
-    width: 12px;
-    height: 12px;
+    width: 20px;
+    height: 20px;
   }
 }
 

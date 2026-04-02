@@ -2677,7 +2677,7 @@ export class Lightbox {
     close.setAttribute('aria-label', 'Close');
     close.type = 'button';
     close.innerHTML =
-      '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>';
+      '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>';
     close.addEventListener('click', (e) => {
       e.stopPropagation();
       this.close();
@@ -2697,7 +2697,7 @@ export class Lightbox {
       prev.setAttribute('aria-label', 'Previous image');
       prev.type = 'button';
       prev.innerHTML =
-        '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="12,4 6,10 12,16"/></svg>';
+        '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="12,4 6,10 12,16"/></svg>';
       prev.addEventListener('click', (e) => {
         e.stopPropagation();
         this.prev();
@@ -2712,7 +2712,7 @@ export class Lightbox {
       next.setAttribute('aria-label', 'Next image');
       next.type = 'button';
       next.innerHTML =
-        '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="8,4 14,10 8,16"/></svg>';
+        '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="8,4 14,10 8,16"/></svg>';
       next.addEventListener('click', (e) => {
         e.stopPropagation();
         this.next();
