@@ -247,8 +247,19 @@ export class Lightbox {
   private wheelNavCommitted: boolean = false;
   private wheelNavTotalDelta: number = 0;
 
+  // Reduced motion: skip spring animations, snap to final state
+  private reducedMotion: boolean = false;
+  private reducedMotionQuery: MediaQueryList | null = null;
+
   constructor(opts: LightboxOptions = {}) {
     this.opts = { ...DEFAULTS, ...opts };
+
+    // Listen for reduced-motion preference changes
+    this.reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    this.reducedMotion = this.reducedMotionQuery.matches;
+    this.reducedMotionQuery.addEventListener('change', (e) => {
+      this.reducedMotion = e.matches;
+    });
 
     this.handleClick = this.handleClick.bind(this);
     this.handleKeydown = this.handleKeydown.bind(this);
@@ -839,6 +850,12 @@ export class Lightbox {
   private animateFitTransition(from: DOMRect, to: DOMRect): void {
     this.stopFitTransition();
 
+    if (this.reducedMotion) {
+      this.zoom.fitRect = to;
+      this.positionImage(to);
+      return;
+    }
+
     const img = this.imgEl!;
     const config = PAN_SPRING; // Soft spring for a gentle settle
     const springs = {
@@ -1055,6 +1072,8 @@ export class Lightbox {
    * Runs on its own rAF loop so it doesn't interfere with the main spring.
    */
   private bounceTrigger(el: HTMLElement): void {
+    if (this.reducedMotion) return; // Skip decorative bounce
+
     if (this.bounceRafId !== null) {
       cancelAnimationFrame(this.bounceRafId);
       this.bounceRafId = null;
@@ -1317,6 +1336,12 @@ export class Lightbox {
     const img = this.imgEl!;
     const backdrop = this.backdrop!;
 
+    if (this.reducedMotion) {
+      this.applyAnimState(img, backdrop, to);
+      onComplete();
+      return;
+    }
+
     // One spring per animated property
     const springs: {
       key: keyof AnimState;
@@ -1428,6 +1453,13 @@ export class Lightbox {
     onComplete: () => void,
   ): void {
     this.stopStripSpring();
+
+    if (this.reducedMotion) {
+      this.stripOffset = toX;
+      this.applyStripOffset(toX);
+      onComplete();
+      return;
+    }
 
     let spring: SpringState = { position: fromX, velocity };
     let lastTime = performance.now();
@@ -1607,6 +1639,17 @@ export class Lightbox {
     panX = clamp(panX, bounds.minX, bounds.maxX);
     panY = clamp(panY, bounds.minY, bounds.maxY);
 
+    if (this.reducedMotion) {
+      this.zoom.panX = panX;
+      this.zoom.panY = panY;
+      this.zoom.scale = targetScale;
+      this.zoom.zoomed = true;
+      this.applyPanTransform();
+      this.state.isAnimating = false;
+      this.updateCursorState();
+      return;
+    }
+
     const fromPanX = this.zoom.panX;
     const fromPanY = this.zoom.panY;
     const fromScale = this.zoom.scale;
@@ -1675,6 +1718,18 @@ export class Lightbox {
     this.state.isAnimating = true;
     this.zoom.zoomingOut = true;
     this.animateChrome(0);
+
+    if (this.reducedMotion) {
+      this.zoom.panX = 0;
+      this.zoom.panY = 0;
+      this.zoom.scale = 1;
+      this.zoom.zoomed = false;
+      this.zoom.zoomingOut = false;
+      this.applyPanTransform();
+      this.state.isAnimating = false;
+      this.updateCursorState();
+      return;
+    }
 
     const fromPanX = this.zoom.panX;
     const fromPanY = this.zoom.panY;
@@ -2477,6 +2532,17 @@ export class Lightbox {
     this.stopSpring();
     this.state.isAnimating = true;
 
+    if (this.reducedMotion) {
+      this.zoom.panX = targetPanX;
+      this.zoom.panY = targetPanY;
+      this.zoom.scale = targetScale;
+      this.zoom.zoomed = zoomed;
+      this.applyPanTransform();
+      this.state.isAnimating = false;
+      this.updateCursorState();
+      return;
+    }
+
     let sX: SpringState = { position: this.zoom.panX, velocity: 0 };
     let sY: SpringState = { position: this.zoom.panY, velocity: 0 };
     let sScale: SpringState = { position: this.zoom.scale, velocity: 0 };
@@ -2552,6 +2618,13 @@ export class Lightbox {
     const targetY = inBoundsY
       ? clamp(this.zoom.panY + vy * 0.15, bounds.minY, bounds.maxY)
       : clamp(this.zoom.panY, bounds.minY, bounds.maxY);
+
+    if (this.reducedMotion) {
+      this.zoom.panX = targetX;
+      this.zoom.panY = targetY;
+      this.applyPanTransform();
+      return;
+    }
 
     let sX: SpringState = { position: this.zoom.panX, velocity: inBoundsX ? vx : 0 };
     let sY: SpringState = { position: this.zoom.panY, velocity: inBoundsY ? vy : 0 };
@@ -2816,6 +2889,12 @@ export class Lightbox {
     // Reset drift — directional drift is only used during open/close morph
     this.resetChromeDrift();
 
+    if (this.reducedMotion) {
+      this.chromeSpring = { position: target, velocity: 0 };
+      this.updateChromeVisuals();
+      return;
+    }
+
     const config = target === 1 ? this.opts.springOpen : this.opts.springClose;
     let lastTime = performance.now();
 
@@ -2905,6 +2984,15 @@ export class Lightbox {
 
   private startPressLoop(): void {
     if (this.pressRafId !== null) return;
+
+    if (this.reducedMotion) {
+      for (const [, entry] of this.pressSprings) {
+        entry.state = { position: entry.target, velocity: 0 };
+      }
+      this.updateChromeVisuals();
+      return;
+    }
+
     let lastTime = performance.now();
     const tick = (now: number) => {
       const dt = Math.min((now - lastTime) / 1000, 0.064);
