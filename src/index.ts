@@ -1,7 +1,12 @@
 import './style.css';
 
 export { Lightbox } from './lightbox';
-export type { LightboxOptions } from './lightbox';
+export type {
+  LightboxOptions,
+  LightboxEventType,
+  LightboxEventDetail,
+  LightboxEventCallback,
+} from './lightbox';
 
 import { Lightbox } from './lightbox';
 

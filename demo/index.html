@@ -194,6 +194,43 @@
     </ul>
   </div>
 
-  <script type="module" src="/dist/lightbox3.esm.js"></script>
+  <!-- ——— Events API ——— -->
+  <h2>Events API</h2>
+  <p class="description">Open, close, navigate, or zoom any image above. Events are logged below in real time.</p>
+  <div id="events-demo" style="font-family: 'SF Mono', SFMono-Regular, Menlo, monospace; font-size: 0.8125rem; background: #f5f5f5; border-radius: 8px; padding: 16px; max-height: 240px; overflow-y: auto; color: #333;">
+    <div id="events-log" style="display: flex; flex-direction: column; gap: 2px;"></div>
+  </div>
+
+  <script type="module">
+    import { Lightbox } from '/dist/lightbox3.esm.js';
+
+    const lb = Lightbox.init();
+    const log = document.getElementById('events-log');
+    const container = document.getElementById('events-demo');
+
+    const colors = {
+      open: '#2563eb',
+      opened: '#16a34a',
+      close: '#dc2626',
+      closed: '#9333ea',
+      navigate: '#ea580c',
+      zoomIn: '#0891b2',
+      zoomOut: '#6d28d9',
+    };
+
+    ['open', 'opened', 'close', 'closed', 'navigate', 'zoomIn', 'zoomOut'].forEach((event) => {
+      lb.on(event, (detail) => {
+        const row = document.createElement('div');
+        const file = detail.src.split('/').pop().split('?')[0];
+        const badge = `<span style="display:inline-block;background:${colors[event]};color:#fff;padding:1px 6px;border-radius:4px;font-size:0.75rem;min-width:64px;text-align:center;">${event}</span>`;
+        const info = detail.total > 1
+          ? `${file} <span style="color:#999;">${detail.index + 1}/${detail.total}</span>`
+          : file;
+        row.innerHTML = `${badge} ${info}`;
+        log.appendChild(row);
+        container.scrollTop = container.scrollHeight;
+      });
+    });
+  </script>
 </body>
 </html>

@@ -2,6 +2,28 @@ import { springStep, SPRING_MORPH, SPRING_OPEN, SPRING_CLOSE } from './physics/s
 import type { SpringConfig, SpringState, SpringStepResult } from './physics/spring';
 // Note: easing.ts is no longer used — all animations are rAF + spring physics
 
+export type LightboxEventType =
+  | 'open'
+  | 'opened'
+  | 'close'
+  | 'closed'
+  | 'navigate'
+  | 'zoomIn'
+  | 'zoomOut';
+
+export interface LightboxEventDetail {
+  /** The full-res image URL */
+  src: string;
+  /** The trigger element (anchor or element with data-lightbox) */
+  triggerEl: HTMLElement;
+  /** Current index in the gallery (0 for standalone images) */
+  index: number;
+  /** Total items in the gallery (1 for standalone images) */
+  total: number;
+}
+
+export type LightboxEventCallback = (detail: LightboxEventDetail) => void;
+
 export interface LightboxOptions {
   selector?: string;
   springOpen?: SpringConfig;
@@ -117,11 +139,12 @@ const PRESS_SPRING: SpringConfig = { stiffness: 300, damping: 20, mass: 1 };
 // Wheel scroll thresholds
 const WHEEL_NAV_THRESHOLD = 60; // Accumulated horizontal px to commit navigate
 const WHEEL_DISMISS_THRESHOLD = 150; // Accumulated vertical px to commit dismiss
-const WHEEL_ZOOM_STEP = 1.15; // Mouse wheel zoom multiplier per notch
 const WHEEL_DISMISS_VELOCITY = 600; // Simulated velocity for wheel-driven dismiss close
 
 export class Lightbox {
+  private static instance: Lightbox | null = null;
   private opts: Required<LightboxOptions>;
+  private listeners = new Map<LightboxEventType, Set<LightboxEventCallback>>();
   private state: LightboxState = {
     isOpen: false,
     isAnimating: false,
@@ -208,6 +231,9 @@ export class Lightbox {
   // Spring-driven fit-rect transition (aspect ratio change on full-res swap)
   private fitRafId: number | null = null;
 
+  // Focus trap
+  private previouslyFocusedEl: HTMLElement | null = null;
+
   // Scroll lock state
   private savedBodyOverflow: string = '';
   private savedHtmlPaddingRight: string = '';
@@ -239,7 +265,38 @@ export class Lightbox {
   }
 
   static init(opts?: LightboxOptions): Lightbox {
-    return new Lightbox(opts);
+    if (Lightbox.instance) return Lightbox.instance;
+    Lightbox.instance = new Lightbox(opts);
+    return Lightbox.instance;
+  }
+
+  on(event: LightboxEventType, callback: LightboxEventCallback): this {
+    let set = this.listeners.get(event);
+    if (!set) {
+      set = new Set();
+      this.listeners.set(event, set);
+    }
+    set.add(callback);
+    return this;
+  }
+
+  off(event: LightboxEventType, callback: LightboxEventCallback): this {
+    this.listeners.get(event)?.delete(callback);
+    return this;
+  }
+
+  private emit(event: LightboxEventType): void {
+    const set = this.listeners.get(event);
+    if (!set || set.size === 0) return;
+    const detail: LightboxEventDetail = {
+      src: this.state.currentSrc,
+      triggerEl: this.state.triggerEl!,
+      index: this.currentIndex,
+      total: Math.max(this.gallery.length, 1),
+    };
+    for (const cb of set) {
+      cb(detail);
+    }
   }
 
   private attach(): void {
@@ -258,6 +315,8 @@ export class Lightbox {
     this.stopStripSpring();
     this.stopFitTransition();
     this.removeOverlay();
+    this.listeners.clear();
+    if (Lightbox.instance === this) Lightbox.instance = null;
   }
 
   private defaultZoomState(): ZoomState {
@@ -449,6 +508,11 @@ export class Lightbox {
   }
 
   private handleKeydown(e: KeyboardEvent): void {
+    if (e.key === 'Tab') {
+      this.trapFocus(e);
+      return;
+    }
+
     if (e.key === 'Escape') {
       if (this.dismiss.active) {
         // Dismiss gesture in progress — complete the close
@@ -475,6 +539,29 @@ export class Lightbox {
     }
   }
 
+  private trapFocus(e: KeyboardEvent): void {
+    if (!this.overlay) return;
+    const focusable = this.overlay.querySelectorAll<HTMLElement>(
+      'button:not([disabled]):not([style*="display: none"])',
+    );
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (e.shiftKey) {
+      if (document.activeElement === first || !this.overlay.contains(document.activeElement)) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last || !this.overlay.contains(document.activeElement)) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }
+
   private getSrcFromTrigger(trigger: HTMLElement): string {
     const anchor = trigger.closest('a') || trigger;
     return anchor.getAttribute('href') || anchor.querySelector('img')?.src || '';
@@ -496,8 +583,10 @@ export class Lightbox {
     this.state.isAnimating = true;
     this.state.triggerEl = triggerEl;
     this.state.currentSrc = src;
+    this.previouslyFocusedEl = document.activeElement as HTMLElement | null;
     this.lockBodyScroll();
     this.startDebugPanel();
+    this.emit('open');
 
     const thumbImg = triggerEl.querySelector('img') as HTMLImageElement | null;
     const thumbSrc = thumbImg?.currentSrc || thumbImg?.src || '';
@@ -581,6 +670,7 @@ export class Lightbox {
       () => {
         this.state.isAnimating = false;
         this.updateCursorState();
+        this.emit('opened');
       },
       openVisuallyDone,
     );
@@ -683,6 +773,7 @@ export class Lightbox {
       () => {
         this.state.isAnimating = false;
         this.updateCursorState();
+        this.emit('opened');
       },
       openVisuallyDone,
     );
@@ -823,6 +914,7 @@ export class Lightbox {
     this.swipeNav = this.defaultSwipeNavState();
 
     this.state.isClosing = true;
+    this.emit('close');
     this.stopSpring();
     this.stopFitTransition();
     this.stopChromeSpring();
@@ -917,9 +1009,16 @@ export class Lightbox {
     this.unlockBodyScroll();
     document.removeEventListener('keydown', this.handleKeydown);
 
+    if (this.previouslyFocusedEl) {
+      this.previouslyFocusedEl.focus();
+      this.previouslyFocusedEl = null;
+    }
+
     if (this.state.triggerEl) {
       this.bounceTrigger(this.state.triggerEl);
     }
+
+    this.emit('closed');
 
     this.state.isOpen = false;
     this.state.isAnimating = false;
@@ -1046,6 +1145,8 @@ export class Lightbox {
 
     // Hide new thumbnail
     this.setThumbVisibility(false);
+
+    this.emit('navigate');
 
     // Update chrome UI — cross-fade already swapped caption/counter text,
     // so just ensure it's correct for the new index and reset fade state.
@@ -1485,6 +1586,7 @@ export class Lightbox {
   private zoomIn(clickX: number, clickY: number): void {
     if (!this.imgEl || !this.isZoomable()) return;
     this.debugLog('zoomIn');
+    this.emit('zoomIn');
 
     this.stopSpring();
     this.state.isAnimating = true;
@@ -1567,6 +1669,7 @@ export class Lightbox {
   private zoomOut(): void {
     if (!this.imgEl) return;
     this.debugLog('zoomOut');
+    this.emit('zoomOut');
 
     this.stopSpring();
     this.state.isAnimating = true;
@@ -1929,6 +2032,7 @@ export class Lightbox {
   private dismissClose(velocityX: number, velocityY: number): void {
     this.debugLog('dismissClose');
     this.state.isClosing = true;
+    this.emit('close');
     this.state.isAnimating = true;
     this.stopFitTransition();
     if (this.overlay) {
@@ -2046,19 +2150,6 @@ export class Lightbox {
 
   // ─── Wheel handling ────────────────────────────────────────
 
-  /**
-   * Heuristic: mouse wheels produce deltaMode=1 (lines) or large round values.
-   * Trackpads produce deltaMode=0 (pixels) with small/fractional deltas.
-   */
-  private isMouseWheel(e: WheelEvent): boolean {
-    if (e.deltaMode === 1) return true; // DOM_DELTA_LINE = mouse wheel
-    // Pixel mode: mouse wheels tend to produce multiples of ~100
-    // Trackpads produce smaller, often fractional values
-    const absX = Math.abs(e.deltaX);
-    const absY = Math.abs(e.deltaY);
-    const maxDelta = Math.max(absX, absY);
-    return maxDelta > 0 && maxDelta % 100 === 0;
-  }
 
   private handleWheel(e: WheelEvent): void {
     e.preventDefault();
@@ -2081,52 +2172,30 @@ export class Lightbox {
       this.wheelNavTotalDelta = 0;
     }, 80);
 
-    const isMouse = this.isMouseWheel(e);
-
-    if (isMouse) {
-      this.handleMouseWheel(e);
-    } else {
-      this.handleTrackpadScroll(e);
-    }
+    this.handleScroll(e);
   }
 
-  private handleMouseWheel(e: WheelEvent): void {
-    const scrollUp = e.deltaY < 0;
+  private handleScroll(e: WheelEvent): void {
+    // Normalize line-based deltas (mouse wheels) to pixels
+    const lineScale = e.deltaMode === 1 ? 16 : 1;
+    const deltaX = e.deltaX * lineScale;
+    const deltaY = e.deltaY * lineScale;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
 
     if (this.zoom.zoomed || this.zoom.scale !== 1) {
-      // Zoomed: mouse wheel zooms in/out further
-      const currentScale = this.zoom.scale;
-      const targetScale = scrollUp
-        ? currentScale * WHEEL_ZOOM_STEP
-        : currentScale / WHEEL_ZOOM_STEP;
-
-      this.wheelZoomTo(targetScale, e.clientX, e.clientY);
-    } else {
-      // Not zoomed: scroll up zooms in at cursor position
-      if (scrollUp && this.isZoomable()) {
-        this.zoomIn(e.clientX, e.clientY);
-      }
-      // Scroll down at scale=1: no-op (already at minimum zoom)
-    }
-  }
-
-  private handleTrackpadScroll(e: WheelEvent): void {
-    const absX = Math.abs(e.deltaX);
-    const absY = Math.abs(e.deltaY);
-
-    if (this.zoom.zoomed || this.zoom.scale !== 1) {
-      // Zoomed: trackpad scroll pans
-      this.wheelPan(e.deltaX, e.deltaY);
+      // Zoomed: scroll pans
+      this.wheelPan(deltaX, deltaY);
       return;
     }
 
     // At fit scale: determine primary axis
     if (absX > absY && this.gallery.length > 1) {
       // Horizontal dominant — navigate gallery
-      this.wheelNavigate(e.deltaX);
+      this.wheelNavigate(deltaX);
     } else if (absY > 0) {
       // Vertical dominant — dismiss
-      this.wheelDismiss(e.deltaY);
+      this.wheelDismiss(deltaY);
     }
   }
 
@@ -2180,51 +2249,6 @@ export class Lightbox {
     }, 100);
   }
 
-  private wheelZoomTo(targetScale: number, clientX: number, clientY: number): void {
-    if (!this.imgEl) return;
-
-    const maxScale = this.getMaxZoomScale();
-    const newScale = clamp(targetScale, 1, maxScale);
-
-    // If zooming to ~1, zoom out fully
-    if (newScale <= 1.02) {
-      this.zoomOut();
-      return;
-    }
-
-    this.stopSpring();
-
-    // Zoom toward cursor position
-    const { fitRect } = this.zoom;
-    const imgCenterX = fitRect.x + fitRect.width / 2;
-    const imgCenterY = fitRect.y + fitRect.height / 2;
-
-    const oldScale = this.zoom.scale;
-    const scaleRatio = newScale / oldScale;
-
-    // Adjust pan so the point under the cursor stays stationary
-    const cursorRelX = clientX - imgCenterX - this.zoom.panX;
-    const cursorRelY = clientY - imgCenterY - this.zoom.panY;
-    let panX = this.zoom.panX - cursorRelX * (scaleRatio - 1);
-    let panY = this.zoom.panY - cursorRelY * (scaleRatio - 1);
-
-    const bounds = this.computePanBounds(newScale);
-    panX = clamp(panX, bounds.minX, bounds.maxX);
-    panY = clamp(panY, bounds.minY, bounds.maxY);
-
-    this.zoom.scale = newScale;
-    this.zoom.panX = panX;
-    this.zoom.panY = panY;
-
-    if (!this.zoom.zoomed && newScale > 1) {
-      this.zoom.zoomed = true;
-      this.animateChrome(1);
-      this.updateCursorState();
-    }
-
-    this.applyPanTransform();
-  }
-
   private wheelNavigate(deltaX: number): void {
     if (this.wheelNavCommitted) return;
 
@@ -2243,13 +2267,7 @@ export class Lightbox {
   }
 
   private wheelDismiss(deltaY: number): void {
-    // Only dismiss on downward scroll
-    if (deltaY < 0) {
-      this.wheelDismissY = 0;
-      return;
-    }
-
-    this.wheelDismissY += deltaY;
+    this.wheelDismissY += Math.abs(deltaY);
 
     if (this.wheelDismissY > WHEEL_DISMISS_THRESHOLD) {
       this.wheelDismissY = 0;
@@ -2689,6 +2707,7 @@ export class Lightbox {
 
     this.overlay.appendChild(bar);
     this.chromeBar = bar;
+    this.overlay.focus({ preventScroll: true });
 
     // Navigation arrows (gallery only)
     if (isGallery) {
@@ -2913,6 +2932,7 @@ export class Lightbox {
     overlay.className = 'lightbox3-overlay';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
+    overlay.tabIndex = -1;
 
     const backdrop = document.createElement('div');
     backdrop.className = 'lightbox3-backdrop';
