@@ -1817,12 +1817,25 @@ export class Lightbox {
     // Block during open animation (isAnimating=true) — the image is mid-FLIP
     // and freezing it would leave a partial-open state. Snap-back doesn't set
     // isAnimating, so it stays interruptible.
-    if (this.zoom.scale <= 1 && !this.state.isAnimating) {
+    // Use !zoomed rather than scale<=1: during zoom-out spring tail, scale may
+    // linger slightly above 1 after madeInteractive has already cleared zoomed.
+    // Also catch mid-zoomOut: if the user touches down while zoom-out is animating,
+    // snap to fit scale and start dismiss tracking instead of entering pan mode.
+    const atFitScale = !this.zoom.zoomed || this.zoom.zoomingOut;
+    const blockedByAnimation = this.state.isAnimating && !this.zoom.zoomingOut;
+    if (atFitScale && !blockedByAnimation) {
       // Resolve any in-progress strip animation
       this.resolveStripAnimation();
 
-      // Cancel any in-progress animation (e.g. snap-back) — user is grabbing it
+      // Cancel any in-progress animation (e.g. snap-back, zoom-out spring)
       this.stopSpring();
+      // Snap to fit scale so the image is exactly at rest
+      this.zoom.scale = 1;
+      this.zoom.panX = 0;
+      this.zoom.panY = 0;
+      this.zoom.zoomed = false;
+      this.zoom.zoomingOut = false;
+      this.applyPanTransform();
       this.state.isAnimating = false;
       this.dismiss.tracking = true;
       this.dismiss.startX = e.clientX;
@@ -1832,7 +1845,7 @@ export class Lightbox {
       return;
     }
 
-    // Interrupt any in-progress zoom animation — user is grabbing it
+    // Interrupt any in-progress zoom-in animation — user is grabbing it
     this.stopSpring();
     this.zoom.zoomed = true;
     this.state.isAnimating = false;
@@ -1854,8 +1867,11 @@ export class Lightbox {
     // Only handle pointers that land outside the image (backdrop area)
     if (e.target === this.imgEl) return;
 
-    // Only for dismiss at fit scale, not during open animation
-    if (this.zoom.scale > 1 || this.state.isAnimating) return;
+    // Only for dismiss at fit scale, not during open animation.
+    // Allow during zoom-out: snap to fit and start dismiss tracking.
+    const atFitScale = !this.zoom.zoomed || this.zoom.zoomingOut;
+    const blockedByAnimation = this.state.isAnimating && !this.zoom.zoomingOut;
+    if (!atFitScale || blockedByAnimation) return;
 
     e.preventDefault();
 
@@ -1866,6 +1882,15 @@ export class Lightbox {
     this.resolveStripAnimation();
 
     this.stopSpring();
+    // Snap to fit scale in case we interrupted a zoom-out spring
+    if (this.zoom.zoomingOut) {
+      this.zoom.scale = 1;
+      this.zoom.panX = 0;
+      this.zoom.panY = 0;
+      this.zoom.zoomed = false;
+      this.zoom.zoomingOut = false;
+      this.applyPanTransform();
+    }
     this.state.isAnimating = false;
     this.dismiss.tracking = true;
     this.dismiss.fromOverlay = true;
@@ -1964,6 +1989,9 @@ export class Lightbox {
 
     if (!wasDrag) {
       this.zoomOut();
+      // Mark dragMoved so the subsequent click event is suppressed —
+      // without this, handleImageClick also calls zoomOut() on the same tap.
+      this.zoom.dragMoved = true;
       return;
     }
 
