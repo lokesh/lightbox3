@@ -1,53 +1,290 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="no-js" lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lightbox3 — Demo</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="/dist/lightbox3.css">
   <style>
+    :root {
+      --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-code: "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+      --color-text: #000;
+      --color-text-secondary: #444;
+      --color-text-muted: #999;
+      --color-text-inverse: #fff;
+      --color-link: #17f;
+      --color-bg: #f9f9f9;
+      --color-bg-surface: #fff;
+      --color-bg-hover: #e9e9e9;
+      --color-border: #000;
+      --color-border-light: #ccc;
+      --color-border-subtle: #e0e0e0;
+      --color-border-faint: #f0f0f0;
+      --color-code-inline: #e66622;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --text-sm: .75rem;
+      --text-md: .8rem;
+      --text-base: 1rem;
+      --text-lg: 1rem;
+      --text-xl: 1.4rem;
+      --text-2xl: 3.5rem;
+      --text-3xl: 4.5rem;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html { font-size: 15px; }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      max-width: 960px;
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      line-height: 1.35;
+      -webkit-font-smoothing: antialiased;
+      font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+      background: var(--color-bg);
+      color: var(--color-text);
+      margin: 0;
+    }
+
+    .column {
+      max-width: 60rem;
       margin: 0 auto;
-      padding: 40px 20px 120px;
-      background: #fff;
-      color: #1a1a1a;
+      padding: 0 16px;
+    }
+
+    @media (min-width: 720px) {
+      .main > .column { display: flex; }
+    }
+
+    .content {
+      min-width: 0;
+    }
+
+    /* ——— Sidebar nav ——— */
+
+    .sidebar {
+      display: none;
+      flex: 0 0 13rem;
+    }
+
+    .nav {
+      position: sticky;
+      top: 2rem;
+      display: flex;
+      flex-direction: column;
+      margin-top: 2rem;
+      margin-right: 24px;
+    }
+
+    .nav-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .nav-list-item {
+      margin: 0;
+    }
+
+    .nav-link {
+      display: inline-block;
+      padding: 3px 6px;
+      line-height: 1.35;
+      font-size: .875rem;
+      color: var(--color-text-secondary);
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+    }
+
+    .nav-link:hover {
+      text-decoration: none;
+      color: var(--color-text);
+      background-color: var(--color-bg-hover);
+    }
+
+    .nav-sub-list {
+      margin: 2px 0 6px;
+      padding: 0 0 0 8px;
+      list-style: none;
+      border-left: 1px solid var(--color-border-subtle);
+    }
+
+    .nav-sub-item {
+      margin: 0;
+    }
+
+    .nav-link-sub {
+      font-size: var(--text-md);
+      font-weight: 400;
+      padding: 2px 8px;
+      color: var(--color-text-secondary);
+    }
+
+    .nav-link-sub:hover {
+      color: var(--color-text);
+    }
+
+    @media (min-width: 720px) {
+      .sidebar { display: block; }
+    }
+
+    /* ——— Mobile nav ——— */
+
+    .mobile-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--color-bg);
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+
+    .mobile-nav-scroll {
+      display: flex;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      gap: 4px;
+      padding: 8px 16px;
+      scrollbar-width: none;
+    }
+
+    .mobile-nav-scroll::-webkit-scrollbar { display: none; }
+
+    .mobile-nav-link {
+      flex-shrink: 0;
+      padding: 6px 12px;
+      font-size: var(--text-md);
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      white-space: nowrap;
+      border-radius: 99px;
+      text-decoration: none;
+    }
+
+    .mobile-nav-link:hover {
+      text-decoration: none;
+      background: var(--color-bg-hover);
+      color: var(--color-text);
+    }
+
+    @media (min-width: 720px) {
+      .mobile-nav { display: none; }
+    }
+
+    /* ——— Header ——— */
+
+    .header {
+      padding-top: 2rem;
+      text-align: center;
     }
 
     h1 {
-      font-size: 2rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 4px;
+      font-size: var(--text-2xl);
+      font-weight: 800;
+      line-height: .9;
+      letter-spacing: -.04em;
+      text-transform: uppercase;
+      margin: 0;
     }
 
-    p.subtitle {
-      color: #666;
-      margin-bottom: 48px;
-      font-size: 1.1rem;
+    .lead {
+      margin-bottom: .25rem;
+      font-size: var(--text-base);
+      font-weight: 600;
+    }
+
+    .logo-credit {
+      display: block;
+      margin-bottom: 2rem;
+      color: var(--color-text-muted);
+      font-weight: 500;
+      font-size: .85rem;
+      text-decoration: none;
+    }
+
+    .logo-credit:hover {
+      text-decoration: underline;
+    }
+
+    @media (min-width: 720px) {
+      .header { margin-top: 4rem; text-align: left; }
+      h1 { font-size: var(--text-3xl); position: relative; left: -.1em; }
+      .lead { font-size: 1.1em; }
+    }
+
+    /* ——— Sections ——— */
+
+    section {
+      border-bottom: 1px solid var(--color-border-light);
+      padding: 1.75rem 0;
+    }
+
+    section:last-of-type {
+      border-bottom: 0;
     }
 
     h2 {
-      font-size: 0.875rem;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #666;
-      margin: 48px 0 16px;
+      font-family: var(--font-body);
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -.02em;
+      margin-bottom: 2px;
+      line-height: 1.1;
     }
 
-    h2:first-of-type {
-      margin-top: 0;
+    section > p {
+      margin-bottom: 12px;
+      max-width: 600px;
+      color: var(--color-text-secondary);
+      font-size: .95rem;
+      line-height: 1.5;
     }
 
-    p.description {
-      color: #666;
-      margin: -8px 0 16px;
-      font-size: 0.95rem;
+    h3 {
+      font-size: var(--text-lg);
+      font-weight: 600;
+      margin: 2.5rem 0 .5rem;
+      line-height: 1.1;
+      letter-spacing: -.02em;
     }
+
+    h3:first-of-type {
+      margin-top: 1rem;
+    }
+
+    p {
+      margin: .4em 0 .75em;
+    }
+
+    a {
+      color: var(--color-link);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    code {
+      background-color: var(--color-bg-surface);
+      border: 1px solid var(--color-border-light);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-code);
+      font-size: var(--text-sm);
+      padding: 2px 6px;
+      color: var(--color-code-inline);
+      line-height: 12px;
+    }
+
+    /* ——— Image grid & rows ——— */
 
     .image-row {
       display: flex;
@@ -58,8 +295,9 @@
       display: block;
       overflow: hidden;
       aspect-ratio: 1 / 1;
-      background: #f0f0f0;
+      background: var(--color-bg-hover);
       width: 200px;
+      border-radius: var(--radius-lg);
     }
 
     .image-row img {
@@ -79,7 +317,8 @@
       display: block;
       overflow: hidden;
       aspect-ratio: 1 / 1;
-      background: #f0f0f0;
+      background: var(--color-bg-hover);
+      border-radius: var(--radius-md);
     }
 
     .gallery img {
@@ -89,14 +328,16 @@
       display: block;
     }
 
+    /* ——— Text links ——— */
+
     .text-links a {
-      color: #2563eb;
+      color: var(--color-link);
       text-decoration: underline;
       text-underline-offset: 3px;
     }
 
     .text-links a:hover {
-      color: #1d4ed8;
+      color: var(--color-text);
     }
 
     .text-links ul {
@@ -106,100 +347,388 @@
       gap: 12px;
       font-size: 1.05rem;
     }
+
+    /* ——— Events log ——— */
+
+    .events-log-wrap {
+      font-family: var(--font-code);
+      font-size: .8125rem;
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      max-height: 240px;
+      overflow-y: auto;
+      color: var(--color-text-secondary);
+    }
+
+    .events-log {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    /* ——— API tables ——— */
+
+    .options-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: .5rem 0 1.5rem;
+    }
+
+    .options-table th,
+    .options-table td {
+      padding: .5rem .75rem;
+      border-bottom: 1px solid var(--color-border-light);
+      font-size: .875rem;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .options-table th {
+      background: var(--color-bg-hover);
+      font-weight: 600;
+    }
+
+    .options-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .options-table code {
+      font-size: var(--text-md);
+    }
+
+    .subtle {
+      color: var(--color-text-muted);
+    }
+
+    /* ——— Footer ——— */
+
+    footer {
+      padding: 1.25rem 0;
+      border-top: 1px solid var(--color-border-light);
+      text-align: center;
+      color: var(--color-text-muted);
+      font-size: .85rem;
+      font-weight: 500;
+    }
+
+    footer a {
+      color: var(--color-text-muted);
+    }
+
+    footer a:hover {
+      color: var(--color-text);
+    }
+
+    @media (min-width: 720px) {
+      footer { text-align: left; }
+    }
+
+    @media (max-width: 719px) {
+      .options-table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>Lightbox3</h1>
-  <p class="subtitle">Click any thumbnail or link. Spring-animated zoom. Click or press Esc to close.</p>
 
-  <!-- ——— Two individual images ——— -->
-  <h2>Two Individual Images</h2>
-  <p class="description">Each image opens independently.</p>
-  <div class="image-row">
-    <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-1.jpg" data-lightbox>
-      <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-1.jpg" alt="Girl looking out at people on beach">
-    </a>
-    <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-2.jpg" data-lightbox data-caption="Optional caption.">
-      <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-2.jpg" alt="Two men in bicycle jerseys sitting outside at a table having coffee">
-    </a>
+  <header class="header">
+    <div class="column">
+      <h1>Lightbox3</h1>
+      <p class="lead">Spring-animated image viewer with zoom, pan, and galleries.</p>
+      <a href="https://lokeshdhakar.com" class="logo-credit">by Lokesh Dhakar</a>
+    </div>
+  </header>
+
+  <div class="main">
+    <nav class="mobile-nav">
+      <div class="mobile-nav-scroll">
+        <a href="#examples" class="mobile-nav-link">Examples</a>
+        <a href="#events" class="mobile-nav-link">Events</a>
+        <a href="#api" class="mobile-nav-link">API</a>
+      </div>
+    </nav>
+    <div class="column">
+
+    <div class="sidebar">
+      <nav class="nav">
+        <ul class="nav-list">
+          <li class="nav-list-item"><a href="#examples" class="nav-link">Examples</a>
+            <ul class="nav-sub-list">
+              <li class="nav-sub-item"><a href="#individual" class="nav-link nav-link-sub">Individual images</a></li>
+              <li class="nav-sub-item"><a href="#gallery" class="nav-link nav-link-sub">Image set</a></li>
+              <li class="nav-sub-item"><a href="#large-gallery" class="nav-link nav-link-sub">Large gallery</a></li>
+              <li class="nav-sub-item"><a href="#text-links" class="nav-link nav-link-sub">Text links</a></li>
+              <li class="nav-sub-item"><a href="#text-gallery" class="nav-link nav-link-sub">Text link gallery</a></li>
+            </ul>
+          </li>
+          <li class="nav-list-item"><a href="#events" class="nav-link">Events</a></li>
+          <li class="nav-list-item"><a href="#api" class="nav-link">API</a>
+            <ul class="nav-sub-list">
+              <li class="nav-sub-item"><a href="#api-attributes" class="nav-link nav-link-sub">Data attributes</a></li>
+              <li class="nav-sub-item"><a href="#api-init" class="nav-link nav-link-sub">Initialization</a></li>
+              <li class="nav-sub-item"><a href="#api-options" class="nav-link nav-link-sub">Options</a></li>
+              <li class="nav-sub-item"><a href="#api-methods" class="nav-link nav-link-sub">Methods</a></li>
+              <li class="nav-sub-item"><a href="#api-events" class="nav-link nav-link-sub">Events</a></li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+    </div>
+
+    <div class="content">
+
+    <span id="examples"></span>
+    <!-- ——— Two individual images ——— -->
+    <section id="individual">
+      <h2>Two Individual Images</h2>
+      <p>Each image opens independently.</p>
+      <div class="image-row">
+        <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-1.jpg" data-lightbox>
+          <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-1.jpg" alt="Girl looking out at people on beach">
+        </a>
+        <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-2.jpg" data-lightbox data-caption="Optional caption.">
+          <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-2.jpg" alt="Two men in bicycle jerseys sitting outside at a table having coffee">
+        </a>
+      </div>
+    </section>
+
+    <!-- ——— Four image set ——— -->
+    <section id="gallery">
+      <h2>Four Image Set</h2>
+      <p>Grouped as a navigable gallery. Use arrows or swipe to browse.</p>
+      <div class="gallery">
+        <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-3.jpg" data-lightbox="gallery-1" data-caption="Click the right half of the image to move forward.">
+          <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-3.jpg" alt="Golden Gate Bridge with San Francisco in distance">
+        </a>
+        <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-4.jpg" data-lightbox="gallery-1" data-caption="Or press the right arrow on your keyboard.">
+          <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-4.jpg" alt="Forest with mountains behind">
+        </a>
+        <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-5.jpg" data-lightbox="gallery-1" data-caption="The next image in the set is preloaded as you're viewing.">
+          <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-5.jpg" alt="Bicyclist looking out over hill at ocean">
+        </a>
+        <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-6.jpg" data-lightbox="gallery-1" data-caption="Click anywhere outside the image or the X to the right to close.">
+          <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-6.jpg" alt="Small lighthouse at bottom with ocean behind">
+        </a>
+      </div>
+    </section>
+
+    <!-- ——— Large gallery ——— -->
+    <section id="large-gallery">
+      <h2>Large Gallery</h2>
+      <p>A 24-image gallery to test navigation and preloading at scale.</p>
+      <div class="gallery">
+        <a href="https://images.unsplash.com/photo-1682687220742-aba13b6e50ba?w=2400&q=80" data-lightbox="large-gallery" data-caption="Antelope Canyon light beams"><img src="https://images.unsplash.com/photo-1682687220742-aba13b6e50ba?w=400&h=400&fit=crop&q=80" alt="Antelope Canyon light beams"></a>
+        <a href="https://images.unsplash.com/photo-1682695797221-8164ff1fafc9?w=2400&q=80" data-lightbox="large-gallery" data-caption="Mountain lake reflection"><img src="https://images.unsplash.com/photo-1682695797221-8164ff1fafc9?w=400&h=400&fit=crop&q=80" alt="Mountain lake reflection"></a>
+        <a href="https://images.unsplash.com/photo-1470813740244-df37b8c1edcb?w=2400&q=80" data-lightbox="large-gallery" data-caption="Starry night sky"><img src="https://images.unsplash.com/photo-1470813740244-df37b8c1edcb?w=400&h=400&fit=crop&q=80" alt="Starry night sky"></a>
+        <a href="https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=2400&q=80" data-lightbox="large-gallery" data-caption="Lake with autumn trees"><img src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=400&h=400&fit=crop&q=80" alt="Lake with autumn trees"></a>
+        <a href="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Sunlit mountain valley"><img src="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=400&h=400&fit=crop&q=80" alt="Sunlit mountain valley"></a>
+        <a href="https://images.unsplash.com/photo-1426604966848-d7adac402bff?w=2400&q=80" data-lightbox="large-gallery" data-caption="Evergreen forest river"><img src="https://images.unsplash.com/photo-1426604966848-d7adac402bff?w=400&h=400&fit=crop&q=80" alt="Evergreen forest river"></a>
+        <a href="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Tropical beach"><img src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=400&fit=crop&q=80" alt="Tropical beach"></a>
+        <a href="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=2400&q=80" data-lightbox="large-gallery" data-caption="Snow-capped peaks at night"><img src="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=400&fit=crop&q=80" alt="Snow-capped peaks at night"></a>
+        <a href="https://images.unsplash.com/photo-1504198453319-5ce911bafcde?w=2400&q=80" data-lightbox="large-gallery" data-caption="Desert sand dunes"><img src="https://images.unsplash.com/photo-1504198453319-5ce911bafcde?w=400&h=400&fit=crop&q=80" alt="Desert sand dunes"></a>
+        <a href="https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Alpine meadow"><img src="https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=400&h=400&fit=crop&q=80" alt="Alpine meadow"></a>
+        <a href="https://images.unsplash.com/photo-1518173946687-a1e0e2a9eec0?w=2400&q=80" data-lightbox="large-gallery" data-caption="Ocean cliffs at sunset"><img src="https://images.unsplash.com/photo-1518173946687-a1e0e2a9eec0?w=400&h=400&fit=crop&q=80" alt="Ocean cliffs at sunset"></a>
+        <a href="https://images.unsplash.com/photo-1465056836900-8f1e940b3fc8?w=2400&q=80" data-lightbox="large-gallery" data-caption="Northern lights"><img src="https://images.unsplash.com/photo-1465056836900-8f1e940b3fc8?w=400&h=400&fit=crop&q=80" alt="Northern lights"></a>
+        <a href="https://images.unsplash.com/photo-1505567745926-ba89000d255a?w=2400&q=80" data-lightbox="large-gallery" data-caption="Volcanic landscape"><img src="https://images.unsplash.com/photo-1505567745926-ba89000d255a?w=400&h=400&fit=crop&q=80" alt="Volcanic landscape"></a>
+        <a href="https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=2400&q=80" data-lightbox="large-gallery" data-caption="Sunset over the sea"><img src="https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=400&h=400&fit=crop&q=80" alt="Sunset over the sea"></a>
+        <a href="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=2400&q=80" data-lightbox="large-gallery" data-caption="Jagged mountain peaks"><img src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=400&fit=crop&q=80" alt="Jagged mountain peaks"></a>
+        <a href="https://images.unsplash.com/photo-1473773508845-188df298d2d1?w=2400&q=80" data-lightbox="large-gallery" data-caption="Misty forest path"><img src="https://images.unsplash.com/photo-1473773508845-188df298d2d1?w=400&h=400&fit=crop&q=80" alt="Misty forest path"></a>
+        <a href="https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=2400&q=80" data-lightbox="large-gallery" data-caption="Calm lake at dawn"><img src="https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=400&h=400&fit=crop&q=80" alt="Calm lake at dawn"></a>
+        <a href="https://images.unsplash.com/photo-1494500764479-0c8f2919a3d8?w=2400&q=80" data-lightbox="large-gallery" data-caption="Autumn birch forest"><img src="https://images.unsplash.com/photo-1494500764479-0c8f2919a3d8?w=400&h=400&fit=crop&q=80" alt="Autumn birch forest"></a>
+        <a href="https://images.unsplash.com/photo-1485470733090-0aae1788d668?w=2400&q=80" data-lightbox="large-gallery" data-caption="Rolling green hills"><img src="https://images.unsplash.com/photo-1485470733090-0aae1788d668?w=400&h=400&fit=crop&q=80" alt="Rolling green hills"></a>
+        <a href="https://images.unsplash.com/photo-1491002052546-bf38f186af56?w=2400&q=80" data-lightbox="large-gallery" data-caption="Waterfall in jungle"><img src="https://images.unsplash.com/photo-1491002052546-bf38f186af56?w=400&h=400&fit=crop&q=80" alt="Waterfall in jungle"></a>
+        <a href="https://images.unsplash.com/photo-1490682143684-14369e18dce8?w=2400&q=80" data-lightbox="large-gallery" data-caption="Fjord at blue hour"><img src="https://images.unsplash.com/photo-1490682143684-14369e18dce8?w=400&h=400&fit=crop&q=80" alt="Fjord at blue hour"></a>
+        <a href="https://images.unsplash.com/photo-1505144808419-1957a94ca61e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Turquoise ocean waves"><img src="https://images.unsplash.com/photo-1505144808419-1957a94ca61e?w=400&h=400&fit=crop&q=80" alt="Turquoise ocean waves"></a>
+        <a href="https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=2400&q=80" data-lightbox="large-gallery" data-caption="Sunlight through palms"><img src="https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=400&h=400&fit=crop&q=80" alt="Sunlight through palms"></a>
+        <a href="https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Mountain silhouette at dusk"><img src="https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=400&h=400&fit=crop&q=80" alt="Mountain silhouette at dusk"></a>
+      </div>
+    </section>
+
+    <!-- ——— Text links ——— -->
+    <section id="text-links">
+      <h2>Text Links</h2>
+      <p>Links without thumbnails open with a fade instead of a morph.</p>
+      <div class="text-links">
+        <ul>
+          <li><a href="https://images.unsplash.com/photo-1542224566-6e85f2e6772f?w=2400&q=80" data-lightbox>Cherry blossoms in bloom</a></li>
+          <li><a href="https://images.unsplash.com/photo-1516298773066-dec6da0e0cb7?w=2400&q=80" data-lightbox>Coral reef underwater</a></li>
+          <li><a href="https://images.unsplash.com/photo-1534067783941-51c9c23ecefd?w=2400&q=80" data-lightbox>Lightning over the plains</a></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ——— Text link gallery ——— -->
+    <section id="text-gallery">
+      <h2>Text Links — Gallery</h2>
+      <p>Text links grouped as a navigable set.</p>
+      <div class="text-links">
+        <ul>
+          <li><a href="https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=2400&q=80" data-lightbox="text-gallery" data-caption="Lavender fields at sunset">Lavender fields at sunset</a></li>
+          <li><a href="https://images.unsplash.com/photo-1504700610630-ac6edd918cc0?w=2400&q=80" data-lightbox="text-gallery" data-caption="Hot air balloons over valley">Hot air balloons over valley</a></li>
+          <li><a href="https://images.unsplash.com/photo-1520962880247-cfaf541c8724?w=2400&q=80" data-lightbox="text-gallery" data-caption="Rice terraces from above">Rice terraces from above</a></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ——— Events API ——— -->
+    <section id="events">
+      <h2>Events API</h2>
+      <p>Open, close, navigate, or zoom any image above. Events are logged below in real time.</p>
+      <div id="events-demo" class="events-log-wrap">
+        <div id="events-log" class="events-log"></div>
+      </div>
+    </section>
+
+    <!-- ——— API Reference ——— -->
+    <section id="api">
+      <h2>API Reference</h2>
+
+      <h3 id="api-attributes">Data Attributes</h3>
+      <table class="options-table">
+        <thead><tr><th>Attribute</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>data-lightbox</code></td>
+            <td>Add to an <code>&lt;a&gt;</code> element to enable lightbox. The <code>href</code> is used as the full-res image URL.</td>
+          </tr>
+          <tr>
+            <td><code>data-lightbox="<span class="subtle">name</span>"</code></td>
+            <td>Group links into a navigable gallery. All links sharing the same value form a set.</td>
+          </tr>
+          <tr>
+            <td><code>data-caption="<span class="subtle">text</span>"</code></td>
+            <td>Caption text displayed below the image.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 id="api-init">Initialization</h3>
+      <table class="options-table">
+        <thead><tr><th>Method</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>Lightbox.init(<span class="subtle">options?</span>)</code></td>
+            <td>Initialize and return a singleton instance. Scans the DOM for <code>[data-lightbox]</code> elements. Safe to call multiple times — returns the existing instance.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 id="api-options">Options</h3>
+      <table class="options-table">
+        <thead><tr><th>Option</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>selector</code></td>
+            <td><code>string</code></td>
+            <td><code>'[data-lightbox]'</code></td>
+            <td>CSS selector for trigger elements.</td>
+          </tr>
+          <tr>
+            <td><code>springOpen</code></td>
+            <td><code>SpringConfig</code></td>
+            <td><code>{ stiffness: 260, damping: 24 }</code></td>
+            <td>Spring config for open and zoom-in animations.</td>
+          </tr>
+          <tr>
+            <td><code>springClose</code></td>
+            <td><code>SpringConfig</code></td>
+            <td><code>{ stiffness: 300, damping: 28 }</code></td>
+            <td>Spring config for close and zoom-out animations.</td>
+          </tr>
+          <tr>
+            <td><code>padding</code></td>
+            <td><code>number</code></td>
+            <td><code>40</code></td>
+            <td>Viewport padding in pixels around the opened image.</td>
+          </tr>
+          <tr>
+            <td><code>debug</code></td>
+            <td><code>boolean</code></td>
+            <td><code>false</code></td>
+            <td>Show debug overlay with spring values and state. Also enabled via <code>?debug</code> URL param.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 id="api-methods">Methods</h3>
+      <table class="options-table">
+        <thead><tr><th>Method</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>open(<span class="subtle">triggerEl, src</span>)</code></td>
+            <td>Programmatically open an image. <code>triggerEl</code> is the anchor element, <code>src</code> is the full-res URL.</td>
+          </tr>
+          <tr>
+            <td><code>close()</code></td>
+            <td>Close the lightbox.</td>
+          </tr>
+          <tr>
+            <td><code>next()</code></td>
+            <td>Navigate to the next image in the gallery.</td>
+          </tr>
+          <tr>
+            <td><code>prev()</code></td>
+            <td>Navigate to the previous image in the gallery.</td>
+          </tr>
+          <tr>
+            <td><code>destroy()</code></td>
+            <td>Remove all event listeners, cancel animations, and tear down the instance.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 id="api-events">Events</h3>
+      <table class="options-table">
+        <thead><tr><th>Event</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>open</code></td>
+            <td>Fired when the open animation starts.</td>
+          </tr>
+          <tr>
+            <td><code>opened</code></td>
+            <td>Fired when the open animation completes.</td>
+          </tr>
+          <tr>
+            <td><code>close</code></td>
+            <td>Fired when the close animation starts.</td>
+          </tr>
+          <tr>
+            <td><code>closed</code></td>
+            <td>Fired when the close animation completes and the overlay is removed.</td>
+          </tr>
+          <tr>
+            <td><code>navigate</code></td>
+            <td>Fired when navigating to a different image in a gallery.</td>
+          </tr>
+          <tr>
+            <td><code>zoomIn</code></td>
+            <td>Fired when zoom-in starts (tap or double-click).</td>
+          </tr>
+          <tr>
+            <td><code>zoomOut</code></td>
+            <td>Fired when zoom-out starts.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>Subscribe with <code>lb.on(event, callback)</code> and unsubscribe with <code>lb.off(event, callback)</code>. Callbacks receive a <code>{ src, triggerEl, index, total }</code> detail object.</p>
+    </section>
+
+    </div><!-- .content -->
+    </div><!-- .column -->
   </div>
 
-  <!-- ——— Four image set ——— -->
-  <h2>Four Image Set</h2>
-  <p class="description">Grouped as a navigable gallery. Use arrows or swipe to browse.</p>
-  <div class="gallery">
-    <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-3.jpg" data-lightbox="gallery-1" data-caption="Click the right half of the image to move forward.">
-      <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-3.jpg" alt="Golden Gate Bridge with San Francisco in distance">
-    </a>
-    <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-4.jpg" data-lightbox="gallery-1" data-caption="Or press the right arrow on your keyboard.">
-      <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-4.jpg" alt="Forest with mountains behind">
-    </a>
-    <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-5.jpg" data-lightbox="gallery-1" data-caption="The next image in the set is preloaded as you're viewing.">
-      <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-5.jpg" alt="Bicyclist looking out over hill at ocean">
-    </a>
-    <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-6.jpg" data-lightbox="gallery-1" data-caption="Click anywhere outside the image or the X to the right to close.">
-      <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-6.jpg" alt="Small lighthouse at bottom with ocean behind">
-    </a>
-  </div>
-
-  <!-- ——— Large gallery ——— -->
-  <h2>Large Gallery</h2>
-  <p class="description">A 24-image gallery to test navigation and preloading at scale.</p>
-  <div class="gallery">
-    <a href="https://images.unsplash.com/photo-1682687220742-aba13b6e50ba?w=2400&q=80" data-lightbox="large-gallery" data-caption="Antelope Canyon light beams"><img src="https://images.unsplash.com/photo-1682687220742-aba13b6e50ba?w=400&h=400&fit=crop&q=80" alt="Antelope Canyon light beams"></a>
-    <a href="https://images.unsplash.com/photo-1682695797221-8164ff1fafc9?w=2400&q=80" data-lightbox="large-gallery" data-caption="Mountain lake reflection"><img src="https://images.unsplash.com/photo-1682695797221-8164ff1fafc9?w=400&h=400&fit=crop&q=80" alt="Mountain lake reflection"></a>
-    <a href="https://images.unsplash.com/photo-1470813740244-df37b8c1edcb?w=2400&q=80" data-lightbox="large-gallery" data-caption="Starry night sky"><img src="https://images.unsplash.com/photo-1470813740244-df37b8c1edcb?w=400&h=400&fit=crop&q=80" alt="Starry night sky"></a>
-    <a href="https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=2400&q=80" data-lightbox="large-gallery" data-caption="Lake with autumn trees"><img src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=400&h=400&fit=crop&q=80" alt="Lake with autumn trees"></a>
-    <a href="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Sunlit mountain valley"><img src="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=400&h=400&fit=crop&q=80" alt="Sunlit mountain valley"></a>
-    <a href="https://images.unsplash.com/photo-1426604966848-d7adac402bff?w=2400&q=80" data-lightbox="large-gallery" data-caption="Evergreen forest river"><img src="https://images.unsplash.com/photo-1426604966848-d7adac402bff?w=400&h=400&fit=crop&q=80" alt="Evergreen forest river"></a>
-    <a href="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Tropical beach"><img src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=400&fit=crop&q=80" alt="Tropical beach"></a>
-    <a href="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=2400&q=80" data-lightbox="large-gallery" data-caption="Snow-capped peaks at night"><img src="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=400&fit=crop&q=80" alt="Snow-capped peaks at night"></a>
-    <a href="https://images.unsplash.com/photo-1504198453319-5ce911bafcde?w=2400&q=80" data-lightbox="large-gallery" data-caption="Desert sand dunes"><img src="https://images.unsplash.com/photo-1504198453319-5ce911bafcde?w=400&h=400&fit=crop&q=80" alt="Desert sand dunes"></a>
-    <a href="https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Alpine meadow"><img src="https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=400&h=400&fit=crop&q=80" alt="Alpine meadow"></a>
-    <a href="https://images.unsplash.com/photo-1518173946687-a1e0e2a9eec0?w=2400&q=80" data-lightbox="large-gallery" data-caption="Ocean cliffs at sunset"><img src="https://images.unsplash.com/photo-1518173946687-a1e0e2a9eec0?w=400&h=400&fit=crop&q=80" alt="Ocean cliffs at sunset"></a>
-    <a href="https://images.unsplash.com/photo-1465056836900-8f1e940b3fc8?w=2400&q=80" data-lightbox="large-gallery" data-caption="Northern lights"><img src="https://images.unsplash.com/photo-1465056836900-8f1e940b3fc8?w=400&h=400&fit=crop&q=80" alt="Northern lights"></a>
-    <a href="https://images.unsplash.com/photo-1505567745926-ba89000d255a?w=2400&q=80" data-lightbox="large-gallery" data-caption="Volcanic landscape"><img src="https://images.unsplash.com/photo-1505567745926-ba89000d255a?w=400&h=400&fit=crop&q=80" alt="Volcanic landscape"></a>
-    <a href="https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=2400&q=80" data-lightbox="large-gallery" data-caption="Sunset over the sea"><img src="https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=400&h=400&fit=crop&q=80" alt="Sunset over the sea"></a>
-    <a href="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=2400&q=80" data-lightbox="large-gallery" data-caption="Jagged mountain peaks"><img src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=400&fit=crop&q=80" alt="Jagged mountain peaks"></a>
-    <a href="https://images.unsplash.com/photo-1473773508845-188df298d2d1?w=2400&q=80" data-lightbox="large-gallery" data-caption="Misty forest path"><img src="https://images.unsplash.com/photo-1473773508845-188df298d2d1?w=400&h=400&fit=crop&q=80" alt="Misty forest path"></a>
-    <a href="https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=2400&q=80" data-lightbox="large-gallery" data-caption="Calm lake at dawn"><img src="https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=400&h=400&fit=crop&q=80" alt="Calm lake at dawn"></a>
-    <a href="https://images.unsplash.com/photo-1494500764479-0c8f2919a3d8?w=2400&q=80" data-lightbox="large-gallery" data-caption="Autumn birch forest"><img src="https://images.unsplash.com/photo-1494500764479-0c8f2919a3d8?w=400&h=400&fit=crop&q=80" alt="Autumn birch forest"></a>
-    <a href="https://images.unsplash.com/photo-1485470733090-0aae1788d668?w=2400&q=80" data-lightbox="large-gallery" data-caption="Rolling green hills"><img src="https://images.unsplash.com/photo-1485470733090-0aae1788d668?w=400&h=400&fit=crop&q=80" alt="Rolling green hills"></a>
-    <a href="https://images.unsplash.com/photo-1491002052546-bf38f186af56?w=2400&q=80" data-lightbox="large-gallery" data-caption="Waterfall in jungle"><img src="https://images.unsplash.com/photo-1491002052546-bf38f186af56?w=400&h=400&fit=crop&q=80" alt="Waterfall in jungle"></a>
-    <a href="https://images.unsplash.com/photo-1490682143684-14369e18dce8?w=2400&q=80" data-lightbox="large-gallery" data-caption="Fjord at blue hour"><img src="https://images.unsplash.com/photo-1490682143684-14369e18dce8?w=400&h=400&fit=crop&q=80" alt="Fjord at blue hour"></a>
-    <a href="https://images.unsplash.com/photo-1505144808419-1957a94ca61e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Turquoise ocean waves"><img src="https://images.unsplash.com/photo-1505144808419-1957a94ca61e?w=400&h=400&fit=crop&q=80" alt="Turquoise ocean waves"></a>
-    <a href="https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=2400&q=80" data-lightbox="large-gallery" data-caption="Sunlight through palms"><img src="https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=400&h=400&fit=crop&q=80" alt="Sunlight through palms"></a>
-    <a href="https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Mountain silhouette at dusk"><img src="https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=400&h=400&fit=crop&q=80" alt="Mountain silhouette at dusk"></a>
-  </div>
-
-  <!-- ——— Text links ——— -->
-  <h2>Text Links</h2>
-  <p class="description">Links without thumbnails open with a fade instead of a morph.</p>
-  <div class="text-links">
-    <ul>
-      <li><a href="https://images.unsplash.com/photo-1542224566-6e85f2e6772f?w=2400&q=80" data-lightbox>Cherry blossoms in bloom</a></li>
-      <li><a href="https://images.unsplash.com/photo-1516298773066-dec6da0e0cb7?w=2400&q=80" data-lightbox>Coral reef underwater</a></li>
-      <li><a href="https://images.unsplash.com/photo-1534067783941-51c9c23ecefd?w=2400&q=80" data-lightbox>Lightning over the plains</a></li>
-    </ul>
-  </div>
-
-  <!-- ——— Text link gallery ——— -->
-  <h2>Text Links — Gallery</h2>
-  <p class="description">Text links grouped as a navigable set.</p>
-  <div class="text-links">
-    <ul>
-      <li><a href="https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=2400&q=80" data-lightbox="text-gallery" data-caption="Lavender fields at sunset">Lavender fields at sunset</a></li>
-      <li><a href="https://images.unsplash.com/photo-1504700610630-ac6edd918cc0?w=2400&q=80" data-lightbox="text-gallery" data-caption="Hot air balloons over valley">Hot air balloons over valley</a></li>
-      <li><a href="https://images.unsplash.com/photo-1520962880247-cfaf541c8724?w=2400&q=80" data-lightbox="text-gallery" data-caption="Rice terraces from above">Rice terraces from above</a></li>
-    </ul>
-  </div>
-
-  <!-- ——— Events API ——— -->
-  <h2>Events API</h2>
-  <p class="description">Open, close, navigate, or zoom any image above. Events are logged below in real time.</p>
-  <div id="events-demo" style="font-family: 'SF Mono', SFMono-Regular, Menlo, monospace; font-size: 0.8125rem; background: #f5f5f5; border-radius: 8px; padding: 16px; max-height: 240px; overflow-y: auto; color: #333;">
-    <div id="events-log" style="display: flex; flex-direction: column; gap: 2px;"></div>
-  </div>
+  <footer>
+    <div class="column">
+      Created by <a href="https://lokeshdhakar.com">Lokesh Dhakar</a>
+    </div>
+  </footer>
 
   <script type="module">
     import { Lightbox } from '/dist/lightbox3.esm.js';
