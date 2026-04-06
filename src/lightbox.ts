@@ -121,6 +121,7 @@ interface GalleryItem {
   src: string;
   thumbSrc: string;
   caption: string;
+  alt: string;
 }
 
 interface SwipeNavState {
@@ -501,7 +502,8 @@ export class Lightbox {
         triggerEl: htmlEl,
         src: this.getSrcFromTrigger(htmlEl),
         thumbSrc: img?.currentSrc || img?.src || '',
-        caption: htmlEl.getAttribute('data-caption') || '',
+        caption: htmlEl.getAttribute('data-caption') || htmlEl.getAttribute('data-title') || '',
+        alt: htmlEl.getAttribute('data-alt') || img?.alt || '',
       };
     });
 
@@ -3029,7 +3031,16 @@ export class Lightbox {
     if (this.gallery.length > 0) {
       return this.gallery[this.currentIndex]?.caption || '';
     }
-    return this.state.triggerEl?.getAttribute('data-caption') || '';
+    return this.state.triggerEl?.getAttribute('data-caption') || this.state.triggerEl?.getAttribute('data-title') || '';
+  }
+
+  private getCurrentAlt(): string {
+    if (this.gallery.length > 0) {
+      return this.gallery[this.currentIndex]?.alt || '';
+    }
+    const triggerEl = this.state.triggerEl;
+    const img = triggerEl?.querySelector('img') as HTMLImageElement | null;
+    return triggerEl?.getAttribute('data-alt') || img?.alt || '';
   }
 
   private updateChromeContent(): void {
@@ -3239,7 +3250,7 @@ export class Lightbox {
     strip.className = 'lightbox3-strip';
 
     // Center slide
-    const { slide, img } = this.createSlide(src);
+    const { slide, img } = this.createSlide(src, this.getCurrentAlt());
     slide.style.left = '0';
     slide.style.pointerEvents = 'auto';
 
@@ -3262,13 +3273,14 @@ export class Lightbox {
     this.imgEl = img;
   }
 
-  private createSlide(src: string): { slide: HTMLDivElement; img: HTMLImageElement } {
+  private createSlide(src: string, alt = ''): { slide: HTMLDivElement; img: HTMLImageElement } {
     const slide = document.createElement('div');
     slide.className = 'lightbox3-slide';
 
     const img = document.createElement('img');
     img.className = 'lightbox3-image';
     if (src) img.src = src;
+    img.alt = alt;
     img.draggable = false;
 
     img.addEventListener('click', (e) => this.handleImageClick(e));
@@ -3287,7 +3299,7 @@ export class Lightbox {
     const item = this.gallery[galleryIndex];
     if (!item) return;
 
-    const { slide, img } = this.createSlide('');
+    const { slide, img } = this.createSlide('', item.alt);
     slide.style.left = `${leftPosition}px`;
     slide.style.pointerEvents = 'none';
 
