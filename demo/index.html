@@ -510,8 +510,8 @@
           </li>
           <li class="nav-list-item"><a href="#recipes" class="nav-link">Recipes</a>
             <ul class="nav-sub-list">
-              <li class="nav-sub-item"><a href="#recipe-deep-linking" class="nav-link nav-link-sub">Deep linking</a></li>
               <li class="nav-sub-item"><a href="#recipe-programmatic-open" class="nav-link nav-link-sub">Programmatic open</a></li>
+              <li class="nav-sub-item"><a href="#recipe-html-caption" class="nav-link nav-link-sub">HTML in captions</a></li>
             </ul>
           </li>
         </ul>
@@ -764,35 +764,6 @@
 
     <!-- ——— Recipes ——— -->
     <span id="recipes"></span>
-    <section id="recipe-deep-linking">
-      <h2>Recipe: Deep Linking</h2>
-      <p>Open a specific gallery image from a URL hash. Try these links to open images from the <a href="#gallery">four image set</a> above:</p>
-      <p>
-        <a href="#gallery-1/1" class="deep-link-demo">Image 1</a> ·
-        <a href="#gallery-1/2" class="deep-link-demo">Image 2</a> ·
-        <a href="#gallery-1/3" class="deep-link-demo">Image 3</a> ·
-        <a href="#gallery-1/4" class="deep-link-demo">Image 4</a>
-      </p>
-
-      <pre class="code-block"><code>// URL format: page.html#gallery-name/image-number
-// e.g. page.html#my-gallery/3 opens the 3rd image
-
-function openFromHash() {
-  const match = location.hash.match(/^#(.+)\/(\d+)$/);
-  if (!match) return;
-
-  const [, gallery, num] = match;
-  const index = parseInt(num, 10) - 1;
-  const triggers = document.querySelectorAll(
-    `[data-lightbox="${gallery}"]`
-  );
-  if (triggers[index]) triggers[index].click();
-}
-
-// Run after Lightbox.init()
-openFromHash();
-window.addEventListener('hashchange', openFromHash);</code></pre>
-    </section>
 
     <!-- ——— Programmatic open ——— -->
     <section id="recipe-programmatic-open">
@@ -813,6 +784,26 @@ window.addEventListener('hashchange', openFromHash);</code></pre>
 
       <pre class="code-block"><code>const lb = Lightbox.init();
 lb.open('https://example.com/photo.jpg');</code></pre>
+    </section>
+
+    <!-- ——— HTML in captions ——— -->
+    <section id="recipe-html-caption">
+      <h2>Recipe: HTML in Captions</h2>
+      <p>Captions support HTML, so you can include links, emphasis, or other inline markup.</p>
+
+      <div class="image-row">
+        <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-1.jpg"
+           data-lightbox
+           data-caption="Photo by <a href='https://lokeshdhakar.com'>Lokesh Dhakar</a>">
+          <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-1.jpg" alt="Girl looking out at people on beach">
+        </a>
+      </div>
+
+      <pre class="code-block"><code>&lt;a href="photo.jpg"
+   data-lightbox
+   data-caption="Photo by &lt;a href='https://example.com'&gt;Jane Doe&lt;/a&gt;"&gt;
+  &lt;img src="thumb.jpg"&gt;
+&lt;/a&gt;</code></pre>
     </section>
 
     </div><!-- .content -->
@@ -841,20 +832,6 @@ lb.open('https://example.com/photo.jpg');</code></pre>
       zoomIn: '#0891b2',
       zoomOut: '#6d28d9',
     };
-
-    // ——— Deep linking recipe ———
-    function openFromHash() {
-      const match = location.hash.match(/^#(.+)\/(\d+)$/);
-      if (!match) return;
-
-      const [, gallery, num] = match;
-      const index = parseInt(num, 10) - 1;
-      const triggers = document.querySelectorAll(`[data-lightbox="${gallery}"]`);
-      if (triggers[index]) triggers[index].click();
-    }
-
-    openFromHash();
-    window.addEventListener('hashchange', openFromHash);
 
     // ——— Programmatic open recipe ———
     document.getElementById('programmatic-open-btn').addEventListener('click', () => {

@@ -1601,7 +1601,7 @@ export class Lightbox {
       }
       if (this.chromeCaption) {
         const cap = item?.caption || '';
-        this.chromeCaption.textContent = cap;
+        this.chromeCaption.innerHTML = cap;
         this.chromeCaption.style.display = cap ? '' : 'none';
       }
     } else if (progress <= 0.5 && this.chromeFadeSwapped) {
@@ -1612,7 +1612,7 @@ export class Lightbox {
       }
       if (this.chromeCaption) {
         const cap = item?.caption || '';
-        this.chromeCaption.textContent = cap;
+        this.chromeCaption.innerHTML = cap;
         this.chromeCaption.style.display = cap ? '' : 'none';
       }
     }
@@ -2971,7 +2971,7 @@ export class Lightbox {
     // Caption
     const captionEl = document.createElement('span');
     captionEl.className = 'lightbox3-caption';
-    captionEl.textContent = caption;
+    captionEl.innerHTML = caption;
     if (!caption) captionEl.style.display = 'none';
     bar.appendChild(captionEl);
     this.chromeCaption = captionEl;
@@ -3054,7 +3054,7 @@ export class Lightbox {
       this.chromeCounter.textContent = `${this.currentIndex + 1}\u2009/\u2009${this.gallery.length}`;
     }
     if (this.chromeCaption) {
-      this.chromeCaption.textContent = caption;
+      this.chromeCaption.innerHTML = caption;
       this.chromeCaption.style.display = caption ? '' : 'none';
     }
     this.updateArrowVisibility();
