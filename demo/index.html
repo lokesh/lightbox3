@@ -19,7 +19,7 @@
       --color-text-muted: #999;
       --color-text-inverse: #fff;
       --color-link: #17f;
-      --color-bg: #f9f9f9;
+      --color-bg: #f0f0f0;
       --color-bg-surface: #fff;
       --color-bg-hover: #e9e9e9;
       --color-border: #000;
@@ -297,7 +297,11 @@
       aspect-ratio: 1 / 1;
       background: var(--color-bg-hover);
       width: 200px;
-      border-radius: var(--radius-lg);
+      transition: transform 0.15s ease;
+    }
+
+    .image-row a:active {
+      transform: scale(0.95);
     }
 
     .image-row img {
@@ -318,7 +322,11 @@
       overflow: hidden;
       aspect-ratio: 1 / 1;
       background: var(--color-bg-hover);
-      border-radius: var(--radius-md);
+      transition: transform 0.15s ease;
+    }
+
+    .gallery a:active {
+      transform: scale(0.95);
     }
 
     .gallery img {
@@ -402,6 +410,26 @@
       color: var(--color-text-muted);
     }
 
+    /* ——— Code blocks ——— */
+
+    .code-block {
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .code-block code {
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--color-text-secondary);
+      font-size: var(--text-sm);
+      line-height: 1.6;
+    }
+
     /* ——— Footer ——— */
 
     footer {
@@ -450,6 +478,7 @@
         <a href="#examples" class="mobile-nav-link">Examples</a>
         <a href="#events" class="mobile-nav-link">Events</a>
         <a href="#api" class="mobile-nav-link">API</a>
+        <a href="#recipes" class="mobile-nav-link">Recipes</a>
       </div>
     </nav>
     <div class="column">
@@ -474,6 +503,11 @@
               <li class="nav-sub-item"><a href="#api-options" class="nav-link nav-link-sub">Options</a></li>
               <li class="nav-sub-item"><a href="#api-methods" class="nav-link nav-link-sub">Methods</a></li>
               <li class="nav-sub-item"><a href="#api-events" class="nav-link nav-link-sub">Events</a></li>
+            </ul>
+          </li>
+          <li class="nav-list-item"><a href="#recipes" class="nav-link">Recipes</a>
+            <ul class="nav-sub-list">
+              <li class="nav-sub-item"><a href="#recipe-deep-linking" class="nav-link nav-link-sub">Deep linking</a></li>
             </ul>
           </li>
         </ul>
@@ -530,17 +564,17 @@
         <a href="https://images.unsplash.com/photo-1426604966848-d7adac402bff?w=2400&q=80" data-lightbox="large-gallery" data-caption="Evergreen forest river"><img src="https://images.unsplash.com/photo-1426604966848-d7adac402bff?w=400&h=400&fit=crop&q=80" alt="Evergreen forest river"></a>
         <a href="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Tropical beach"><img src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=400&fit=crop&q=80" alt="Tropical beach"></a>
         <a href="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=2400&q=80" data-lightbox="large-gallery" data-caption="Snow-capped peaks at night"><img src="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=400&fit=crop&q=80" alt="Snow-capped peaks at night"></a>
-        <a href="https://images.unsplash.com/photo-1504198453319-5ce911bafcde?w=2400&q=80" data-lightbox="large-gallery" data-caption="Desert sand dunes"><img src="https://images.unsplash.com/photo-1504198453319-5ce911bafcde?w=400&h=400&fit=crop&q=80" alt="Desert sand dunes"></a>
+        <a href="https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=2400&q=80" data-lightbox="large-gallery" data-caption="Desert sand dunes"><img src="https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=400&h=400&fit=crop&q=80" alt="Desert sand dunes"></a>
         <a href="https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Alpine meadow"><img src="https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=400&h=400&fit=crop&q=80" alt="Alpine meadow"></a>
-        <a href="https://images.unsplash.com/photo-1518173946687-a1e0e2a9eec0?w=2400&q=80" data-lightbox="large-gallery" data-caption="Ocean cliffs at sunset"><img src="https://images.unsplash.com/photo-1518173946687-a1e0e2a9eec0?w=400&h=400&fit=crop&q=80" alt="Ocean cliffs at sunset"></a>
-        <a href="https://images.unsplash.com/photo-1465056836900-8f1e940b3fc8?w=2400&q=80" data-lightbox="large-gallery" data-caption="Northern lights"><img src="https://images.unsplash.com/photo-1465056836900-8f1e940b3fc8?w=400&h=400&fit=crop&q=80" alt="Northern lights"></a>
+        <a href="https://images.unsplash.com/photo-1414609245224-afa02bfb3fda?w=2400&q=80" data-lightbox="large-gallery" data-caption="Ocean cliffs at sunset"><img src="https://images.unsplash.com/photo-1414609245224-afa02bfb3fda?w=400&h=400&fit=crop&q=80" alt="Ocean cliffs at sunset"></a>
+        <a href="https://images.unsplash.com/photo-1483347756197-71ef80e95f73?w=2400&q=80" data-lightbox="large-gallery" data-caption="Northern lights"><img src="https://images.unsplash.com/photo-1483347756197-71ef80e95f73?w=400&h=400&fit=crop&q=80" alt="Northern lights"></a>
         <a href="https://images.unsplash.com/photo-1505567745926-ba89000d255a?w=2400&q=80" data-lightbox="large-gallery" data-caption="Volcanic landscape"><img src="https://images.unsplash.com/photo-1505567745926-ba89000d255a?w=400&h=400&fit=crop&q=80" alt="Volcanic landscape"></a>
         <a href="https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=2400&q=80" data-lightbox="large-gallery" data-caption="Sunset over the sea"><img src="https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=400&h=400&fit=crop&q=80" alt="Sunset over the sea"></a>
         <a href="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=2400&q=80" data-lightbox="large-gallery" data-caption="Jagged mountain peaks"><img src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=400&fit=crop&q=80" alt="Jagged mountain peaks"></a>
         <a href="https://images.unsplash.com/photo-1473773508845-188df298d2d1?w=2400&q=80" data-lightbox="large-gallery" data-caption="Misty forest path"><img src="https://images.unsplash.com/photo-1473773508845-188df298d2d1?w=400&h=400&fit=crop&q=80" alt="Misty forest path"></a>
         <a href="https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=2400&q=80" data-lightbox="large-gallery" data-caption="Calm lake at dawn"><img src="https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=400&h=400&fit=crop&q=80" alt="Calm lake at dawn"></a>
         <a href="https://images.unsplash.com/photo-1494500764479-0c8f2919a3d8?w=2400&q=80" data-lightbox="large-gallery" data-caption="Autumn birch forest"><img src="https://images.unsplash.com/photo-1494500764479-0c8f2919a3d8?w=400&h=400&fit=crop&q=80" alt="Autumn birch forest"></a>
-        <a href="https://images.unsplash.com/photo-1485470733090-0aae1788d668?w=2400&q=80" data-lightbox="large-gallery" data-caption="Rolling green hills"><img src="https://images.unsplash.com/photo-1485470733090-0aae1788d668?w=400&h=400&fit=crop&q=80" alt="Rolling green hills"></a>
+        <a href="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Rolling green hills"><img src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=400&fit=crop&q=80" alt="Rolling green hills"></a>
         <a href="https://images.unsplash.com/photo-1491002052546-bf38f186af56?w=2400&q=80" data-lightbox="large-gallery" data-caption="Waterfall in jungle"><img src="https://images.unsplash.com/photo-1491002052546-bf38f186af56?w=400&h=400&fit=crop&q=80" alt="Waterfall in jungle"></a>
         <a href="https://images.unsplash.com/photo-1490682143684-14369e18dce8?w=2400&q=80" data-lightbox="large-gallery" data-caption="Fjord at blue hour"><img src="https://images.unsplash.com/photo-1490682143684-14369e18dce8?w=400&h=400&fit=crop&q=80" alt="Fjord at blue hour"></a>
         <a href="https://images.unsplash.com/photo-1505144808419-1957a94ca61e?w=2400&q=80" data-lightbox="large-gallery" data-caption="Turquoise ocean waves"><img src="https://images.unsplash.com/photo-1505144808419-1957a94ca61e?w=400&h=400&fit=crop&q=80" alt="Turquoise ocean waves"></a>
@@ -556,7 +590,7 @@
       <div class="text-links">
         <ul>
           <li><a href="https://images.unsplash.com/photo-1542224566-6e85f2e6772f?w=2400&q=80" data-lightbox>Cherry blossoms in bloom</a></li>
-          <li><a href="https://images.unsplash.com/photo-1516298773066-dec6da0e0cb7?w=2400&q=80" data-lightbox>Coral reef underwater</a></li>
+          <li><a href="https://images.unsplash.com/photo-1546026423-cc4642628d2b?w=2400&q=80" data-lightbox>Coral reef underwater</a></li>
           <li><a href="https://images.unsplash.com/photo-1534067783941-51c9c23ecefd?w=2400&q=80" data-lightbox>Lightning over the plains</a></li>
         </ul>
       </div>
@@ -569,7 +603,7 @@
       <div class="text-links">
         <ul>
           <li><a href="https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=2400&q=80" data-lightbox="text-gallery" data-caption="Lavender fields at sunset">Lavender fields at sunset</a></li>
-          <li><a href="https://images.unsplash.com/photo-1504700610630-ac6edd918cc0?w=2400&q=80" data-lightbox="text-gallery" data-caption="Hot air balloons over valley">Hot air balloons over valley</a></li>
+          <li><a href="https://images.unsplash.com/photo-1507608616759-54f48f0af0ee?w=2400&q=80" data-lightbox="text-gallery" data-caption="Hot air balloons over valley">Hot air balloons over valley</a></li>
           <li><a href="https://images.unsplash.com/photo-1520962880247-cfaf541c8724?w=2400&q=80" data-lightbox="text-gallery" data-caption="Rice terraces from above">Rice terraces from above</a></li>
         </ul>
       </div>
@@ -720,6 +754,38 @@
       <p>Subscribe with <code>lb.on(event, callback)</code> and unsubscribe with <code>lb.off(event, callback)</code>. Callbacks receive a <code>{ src, triggerEl, index, total }</code> detail object.</p>
     </section>
 
+    <!-- ——— Recipes ——— -->
+    <span id="recipes"></span>
+    <section id="recipe-deep-linking">
+      <h2>Recipe: Deep Linking</h2>
+      <p>Open a specific gallery image from a URL hash. Try these links to open images from the <a href="#gallery">four image set</a> above:</p>
+      <p>
+        <a href="#gallery-1/1" class="deep-link-demo">Image 1</a> ·
+        <a href="#gallery-1/2" class="deep-link-demo">Image 2</a> ·
+        <a href="#gallery-1/3" class="deep-link-demo">Image 3</a> ·
+        <a href="#gallery-1/4" class="deep-link-demo">Image 4</a>
+      </p>
+
+      <pre class="code-block"><code>// URL format: page.html#gallery-name/image-number
+// e.g. page.html#my-gallery/3 opens the 3rd image
+
+function openFromHash() {
+  const match = location.hash.match(/^#(.+)\/(\d+)$/);
+  if (!match) return;
+
+  const [, gallery, num] = match;
+  const index = parseInt(num, 10) - 1;
+  const triggers = document.querySelectorAll(
+    `[data-lightbox="${gallery}"]`
+  );
+  if (triggers[index]) triggers[index].click();
+}
+
+// Run after Lightbox.init()
+openFromHash();
+window.addEventListener('hashchange', openFromHash);</code></pre>
+    </section>
+
     </div><!-- .content -->
     </div><!-- .column -->
   </div>
@@ -747,6 +813,21 @@
       zoomOut: '#6d28d9',
     };
 
+    // ——— Deep linking recipe ———
+    function openFromHash() {
+      const match = location.hash.match(/^#(.+)\/(\d+)$/);
+      if (!match) return;
+
+      const [, gallery, num] = match;
+      const index = parseInt(num, 10) - 1;
+      const triggers = document.querySelectorAll(`[data-lightbox="${gallery}"]`);
+      if (triggers[index]) triggers[index].click();
+    }
+
+    openFromHash();
+    window.addEventListener('hashchange', openFromHash);
+
+    // ——— Events log ———
     ['open', 'opened', 'close', 'closed', 'navigate', 'zoomIn', 'zoomOut'].forEach((event) => {
       lb.on(event, (detail) => {
         const row = document.createElement('div');
