@@ -298,11 +298,6 @@
       background: var(--color-bg-hover);
       width: 200px;
       border-radius: 8px;
-      transition: transform 0.15s ease;
-    }
-
-    .image-row a:active {
-      transform: scale(0.95);
     }
 
     .image-row img {
@@ -310,6 +305,12 @@
       height: 100%;
       object-fit: cover;
       display: block;
+      border-radius: 8px;
+      transition: transform 0.15s ease;
+    }
+
+    .image-row a:active img {
+      transform: scale(0.95);
     }
 
     .gallery {
@@ -324,11 +325,6 @@
       aspect-ratio: 1 / 1;
       background: var(--color-bg-hover);
       border-radius: 8px;
-      transition: transform 0.15s ease;
-    }
-
-    .gallery a:active {
-      transform: scale(0.95);
     }
 
     .gallery img {
@@ -336,6 +332,12 @@
       height: 100%;
       object-fit: cover;
       display: block;
+      border-radius: 8px;
+      transition: transform 0.15s ease;
+    }
+
+    .gallery a:active img {
+      transform: scale(0.95);
     }
 
     /* ——— Text links ——— */
