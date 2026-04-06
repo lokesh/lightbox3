@@ -1926,6 +1926,9 @@ export class Lightbox {
     // Only handle pointers that land outside the image (backdrop area)
     if (e.target === this.imgEl) return;
 
+    // Don't intercept clicks on chrome UI (caption links, buttons, etc.)
+    if (this.chromeBar && this.chromeBar.contains(e.target as Node)) return;
+
     // Only for dismiss at fit scale, not during open animation.
     // Allow during zoom-out: snap to fit and start dismiss tracking.
     const atFitScale = !this.zoom.zoomed || this.zoom.zoomingOut;
@@ -2991,6 +2994,12 @@ export class Lightbox {
     bar.appendChild(close);
     this.chromeClose = close;
     this.bindPressSpring(close);
+
+    // Stop clicks on the chrome bar (e.g. caption links) from reaching the
+    // backdrop, which would close the lightbox.
+    bar.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
 
     this.overlay.appendChild(bar);
     this.chromeBar = bar;
