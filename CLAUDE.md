@@ -134,9 +134,11 @@ No tests for now. Do not add or suggest tests.
 ### Spring presets
 
 Exported from `spring.ts`:
-- `SPRING_OPEN` (stiffness: 260, damping: 24) — open morph, zoom in
-- `SPRING_CLOSE` (stiffness: 300, damping: 28) — close morph, zoom out
+- `SPRING_MORPH` (stiffness: 170, damping: 18) — FLIP morph open/close
+- `SPRING_OPEN` (stiffness: 260, damping: 26) — zoom in
+- `SPRING_CLOSE` (stiffness: 500, damping: 38) — zoom out
 
 Defined locally in `lightbox.ts`:
 - `PAN_SPRING` (stiffness: 170, damping: 26) — pan momentum, strip slide animation (softer, more glide)
 - `SNAP_SPRING` (stiffness: 300, damping: 30) — rubber band snap-back, swipe snap-back (stiffer)
+- `PRESS_SPRING` (stiffness: 300, damping: 20) — button press feedback animation

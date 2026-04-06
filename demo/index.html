@@ -511,6 +511,7 @@
           <li class="nav-list-item"><a href="#recipes" class="nav-link">Recipes</a>
             <ul class="nav-sub-list">
               <li class="nav-sub-item"><a href="#recipe-deep-linking" class="nav-link nav-link-sub">Deep linking</a></li>
+              <li class="nav-sub-item"><a href="#recipe-programmatic-open" class="nav-link nav-link-sub">Programmatic open</a></li>
             </ul>
           </li>
         </ul>
@@ -639,7 +640,11 @@
           </tr>
           <tr>
             <td><code>data-caption="<span class="subtle">text</span>"</code></td>
-            <td>Caption text displayed below the image.</td>
+            <td>Caption text displayed below the image. Also accepts <code>data-title</code> for Lightbox2 compatibility.</td>
+          </tr>
+          <tr>
+            <td><code>data-alt="<span class="subtle">text</span>"</code></td>
+            <td>Alt text for the full-size image. Falls back to the thumbnail's <code>alt</code> attribute if not set.</td>
           </tr>
         </tbody>
       </table>
@@ -697,8 +702,8 @@
         <thead><tr><th>Method</th><th>Description</th></tr></thead>
         <tbody>
           <tr>
-            <td><code>open(<span class="subtle">triggerEl, src</span>)</code></td>
-            <td>Programmatically open an image. <code>triggerEl</code> is the anchor element, <code>src</code> is the full-res URL.</td>
+            <td><code>open(<span class="subtle">src, triggerEl?</span>)</code></td>
+            <td>Programmatically open an image. <code>src</code> is the full-res URL. Optional <code>triggerEl</code> enables the morph animation from that element; without it, the image fades in.</td>
           </tr>
           <tr>
             <td><code>close()</code></td>
@@ -789,6 +794,27 @@ openFromHash();
 window.addEventListener('hashchange', openFromHash);</code></pre>
     </section>
 
+    <!-- ——— Programmatic open ——— -->
+    <section id="recipe-programmatic-open">
+      <h2>Recipe: Programmatic Open</h2>
+      <p>Open an image from code without a <code>[data-lightbox]</code> element on the page. The image fades in from center.</p>
+
+      <p><button id="programmatic-open-btn" style="
+        font-family: var(--font-body);
+        font-size: .9rem;
+        font-weight: 600;
+        padding: 8px 16px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--color-border);
+        background: var(--color-bg-surface);
+        color: var(--color-text);
+        cursor: pointer;
+      ">Open image via API</button></p>
+
+      <pre class="code-block"><code>const lb = Lightbox.init();
+lb.open('https://example.com/photo.jpg');</code></pre>
+    </section>
+
     </div><!-- .content -->
     </div><!-- .column -->
   </div>
@@ -829,6 +855,11 @@ window.addEventListener('hashchange', openFromHash);</code></pre>
 
     openFromHash();
     window.addEventListener('hashchange', openFromHash);
+
+    // ——— Programmatic open recipe ———
+    document.getElementById('programmatic-open-btn').addEventListener('click', () => {
+      lb.open('https://images.unsplash.com/photo-1542224566-6e85f2e6772f?w=2400&q=80');
+    });
 
     // ——— Events log ———
     ['open', 'opened', 'close', 'closed', 'navigate', 'zoomIn', 'zoomOut'].forEach((event) => {

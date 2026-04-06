@@ -532,7 +532,7 @@ export class Lightbox {
     }
 
     this.buildGallery(trigger);
-    this.open(trigger, src);
+    this.open(src, trigger);
   }
 
   private handleKeydown(e: KeyboardEvent): void {
@@ -597,7 +597,7 @@ export class Lightbox {
 
   // ─── Open / Close ────────────────────────────────────────────
 
-  open(triggerEl: HTMLElement, src: string): void {
+  open(src: string, triggerEl?: HTMLElement): void {
     if (this.state.isOpen || this.state.isAnimating) return;
     this.debugLog('open');
 
@@ -609,25 +609,26 @@ export class Lightbox {
 
     this.state.isOpen = true;
     this.state.isAnimating = true;
-    this.state.triggerEl = triggerEl;
+    this.state.triggerEl = triggerEl || null;
     this.state.currentSrc = src;
     this.previouslyFocusedEl = document.activeElement as HTMLElement | null;
     this.lockBodyScroll();
     this.startDebugPanel();
     this.emit('open');
 
-    const thumbImg = triggerEl.querySelector('img') as HTMLImageElement | null;
+    const thumbImg = triggerEl?.querySelector('img') as HTMLImageElement | null;
     const thumbSrc = thumbImg?.currentSrc || thumbImg?.src || '';
     this.isTextLink = !thumbImg;
 
     if (this.isTextLink) {
       this.thumbBorderRadius = 0;
-      this.openTextLink(triggerEl, src);
+      this.openTextLink(triggerEl || null, src);
       return;
     }
 
-    const thumbRect = this.getThumbRect(triggerEl);
-    this.thumbBorderRadius = this.getThumbBorderRadius(triggerEl);
+    // triggerEl is guaranteed here — the isTextLink guard above returns early without one
+    const thumbRect = this.getThumbRect(triggerEl!);
+    this.thumbBorderRadius = this.getThumbBorderRadius(triggerEl!);
 
     this.createOverlay(thumbSrc || src);
     this.createChrome();
@@ -669,7 +670,7 @@ export class Lightbox {
     const { flipScale, hasCrop } = this.computeFlipCrop(
       thumbRect,
       targetRect,
-      triggerEl,
+      triggerEl!,
       false,
     );
 
@@ -706,7 +707,7 @@ export class Lightbox {
     );
   }
 
-  private openTextLink(triggerEl: HTMLElement, src: string): void {
+  private openTextLink(triggerEl: HTMLElement | null, src: string): void {
     const cached = this.preloadCache.get(src);
     const fullResReady = cached?.complete && cached.naturalWidth > 0;
 
@@ -719,11 +720,13 @@ export class Lightbox {
     // Image not ready — show overlay + spinner, load, then morph
     this.createOverlay('');
     this.createChrome();
-    const triggerRect = triggerEl.getBoundingClientRect();
-    this.computeChromeDrift(
-      triggerRect.x + triggerRect.width / 2,
-      triggerRect.y + triggerRect.height / 2,
-    );
+    const cx = triggerEl
+      ? triggerEl.getBoundingClientRect().x + triggerEl.getBoundingClientRect().width / 2
+      : window.innerWidth / 2;
+    const cy = triggerEl
+      ? triggerEl.getBoundingClientRect().y + triggerEl.getBoundingClientRect().height / 2
+      : window.innerHeight / 2;
+    this.computeChromeDrift(cx, cy);
     document.addEventListener('keydown', this.handleKeydown);
     if (this.imgEl) this.imgEl.style.opacity = '0';
 
@@ -758,12 +761,14 @@ export class Lightbox {
 
   /** Run the FLIP morph for a text-link trigger once image dimensions are known. */
   private openTextLinkWithImage(
-    triggerEl: HTMLElement,
+    triggerEl: HTMLElement | null,
     src: string,
     natW: number,
     natH: number,
   ): void {
-    const thumbRect = this.getThumbRect(triggerEl);
+    const thumbRect = triggerEl
+      ? this.getThumbRect(triggerEl)
+      : new DOMRect(window.innerWidth / 2, window.innerHeight / 2, 0, 0);
     const targetRect = this.computeTargetRect(natW, natH);
 
     // If overlay wasn't created yet (preloaded path), create it now
