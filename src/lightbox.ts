@@ -48,6 +48,10 @@ const SPINNER_DELAY_MS = 300;
 // visible through ~80% of the close animation and fades quickly at the end.
 const TEXT_LINK_OPACITY_THRESHOLD = 0.2;
 
+// Default border-radius for lightbox images on desktop (px).
+// On mobile (≤600px) the image goes edge-to-edge, so radius is 0.
+const DESKTOP_BORDER_RADIUS = 24;
+
 interface LightboxState {
   isOpen: boolean;
   isAnimating: boolean;
@@ -79,6 +83,7 @@ interface AnimState {
   scale: number;
   opacity: number;
   crop: number;
+  borderRadius: number;
 }
 
 interface PinchState {
@@ -89,6 +94,8 @@ interface PinchState {
   initialPanY: number;
   initialMidX: number;
   initialMidY: number;
+  prevScale: number;
+  prevScaleTime: number;
 }
 
 interface VelocitySample {
@@ -131,6 +138,9 @@ const VELOCITY_WINDOW = 80;
 const PAN_SPRING: SpringConfig = { stiffness: 170, damping: 26, mass: 1 };
 const SNAP_SPRING: SpringConfig = { stiffness: 300, damping: 30, mass: 1 };
 const PINCH_RUBBER_BAND_FACTOR = 0.4;
+const PINCH_DISMISS_RUBBER_BAND_FACTOR = 0.65;
+const PINCH_CLOSE_SCALE = 0.8; // Displayed scale below which pinch commits close
+const PINCH_CLOSE_VELOCITY = -2; // Scale/s velocity that commits close regardless of scale
 const SLIDE_GAP = 16;
 const SWIPE_VELOCITY_THRESHOLD = 300;
 const SWIPE_DISTANCE_THRESHOLD = 0.3;
@@ -200,6 +210,9 @@ export class Lightbox {
 
   // Crop insets for object-fit:cover thumbnail animation (pixels in lightbox image space)
   private cropInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+
+  // Border-radius of the thumbnail trigger (px), read on open for close morph
+  private thumbBorderRadius: number = 0;
 
   // Text-link trigger: no FLIP morph, load then fade in
   private isTextLink = false;
@@ -358,6 +371,8 @@ export class Lightbox {
       initialPanY: 0,
       initialMidX: 0,
       initialMidY: 0,
+      prevScale: 1,
+      prevScaleTime: 0,
     };
   }
 
@@ -604,11 +619,13 @@ export class Lightbox {
     this.isTextLink = !thumbImg;
 
     if (this.isTextLink) {
+      this.thumbBorderRadius = 0;
       this.openTextLink(triggerEl, src);
       return;
     }
 
     const thumbRect = this.getThumbRect(triggerEl);
+    this.thumbBorderRadius = this.getThumbBorderRadius(triggerEl);
 
     this.createOverlay(thumbSrc || src);
     this.createChrome();
@@ -675,8 +692,8 @@ export class Lightbox {
     // to clear isAnimating, or dismiss tracking will be blocked.
     const openVisuallyDone = (s: AnimState) => s.opacity > 0.99;
     this.animateSpring(
-      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0 },
-      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
+      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0, borderRadius: this.thumbBorderRadius },
+      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0, borderRadius: this.getTargetBorderRadius() },
       SPRING_MORPH,
       () => {
         this.state.isAnimating = false;
@@ -719,9 +736,10 @@ export class Lightbox {
     }, SPINNER_DELAY_MS);
 
     // Fade in backdrop
+    const targetBR = this.getTargetBorderRadius();
     this.animateSpring(
-      { translateX: 0, translateY: 0, scale: 1, opacity: 0, crop: 0 },
-      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
+      { translateX: 0, translateY: 0, scale: 1, opacity: 0, crop: 0, borderRadius: targetBR },
+      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0, borderRadius: targetBR },
       this.opts.springOpen,
       () => {},
       undefined,
@@ -777,9 +795,10 @@ export class Lightbox {
     const flipY = flipRect.y + flipRect.height / 2 - (targetRect.y + targetRect.height / 2);
 
     const openVisuallyDone = (s: AnimState) => s.opacity > 0.99;
+    const targetBR = this.getTargetBorderRadius();
     this.animateSpring(
-      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: 0 },
-      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
+      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: 0, borderRadius: 0 },
+      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0, borderRadius: targetBR },
       SPRING_MORPH,
       () => {
         this.state.isAnimating = false;
@@ -924,6 +943,13 @@ export class Lightbox {
       return;
     }
 
+    // If pinch is active below fit scale, bridge into pinch close
+    if (this.pinch.active && this.zoom.scale < 1) {
+      this.pinch.active = false;
+      this.pinchClose();
+      return;
+    }
+
     // Stop any strip animation and reset
     this.stopStripSpring();
     this.stripOffset = 0;
@@ -972,10 +998,12 @@ export class Lightbox {
 
     const closeWhenInvisible = (s: AnimState) => s.opacity < 0.01;
 
+    const currentBR = this.getTargetBorderRadius();
+
     if (!thumbRect || !this.isInViewport(thumbRect)) {
       this.animateSpring(
-        { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
-        { translateX: 0, translateY: 0, scale: 1, opacity: 0, crop: 0 },
+        { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0, borderRadius: currentBR },
+        { translateX: 0, translateY: 0, scale: 1, opacity: 0, crop: 0, borderRadius: currentBR },
         this.opts.springClose,
         () => this.finishClose(),
         closeWhenInvisible,
@@ -1004,8 +1032,8 @@ export class Lightbox {
     );
 
     this.animateSpring(
-      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
-      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0 },
+      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0, borderRadius: currentBR },
+      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0, borderRadius: this.thumbBorderRadius },
       this.opts.springClose,
       () => this.finishClose(),
       closeWhenInvisible,
@@ -1161,6 +1189,7 @@ export class Lightbox {
     const item = this.gallery[this.currentIndex];
     this.state.triggerEl = item.triggerEl;
     this.state.currentSrc = item.src;
+    this.thumbBorderRadius = this.getThumbBorderRadius(item.triggerEl);
 
     // Hide new thumbnail
     this.setThumbVisibility(false);
@@ -1292,6 +1321,13 @@ export class Lightbox {
       this.swapToFullRes(item.src);
     }
 
+    // Apply border-radius to the new current image (previous image had it from
+    // the open animation, but this is a fresh DOM element after slot recycling).
+    const br = this.getTargetBorderRadius();
+    if (this.imgEl) {
+      this.imgEl.style.borderRadius = br > 0 ? `${br}px` : '';
+    }
+
     this.updateCursorState();
   }
 
@@ -1379,6 +1415,12 @@ export class Lightbox {
         target: to.crop,
         config: configOverrides?.crop ?? config,
       },
+      {
+        key: 'borderRadius',
+        state: { position: from.borderRadius, velocity: initialVelocities?.borderRadius ?? 0 },
+        target: to.borderRadius,
+        config: configOverrides?.borderRadius ?? config,
+      },
     ];
 
     let lastTime = performance.now();
@@ -1428,9 +1470,19 @@ export class Lightbox {
 
     if (state.crop > 0.001) {
       const { top, right, bottom, left } = this.cropInsets;
-      img.style.clipPath = `inset(${state.crop * top}px ${state.crop * right}px ${state.crop * bottom}px ${state.crop * left}px)`;
+      const br = state.borderRadius > 0.1 ? state.borderRadius / Math.max(state.scale, 0.01) : 0;
+      img.style.clipPath = `inset(${state.crop * top}px ${state.crop * right}px ${state.crop * bottom}px ${state.crop * left}px round ${br}px)`;
     } else {
       img.style.clipPath = '';
+    }
+
+    // Border-radius: compensate for FLIP scale so visual radius matches the
+    // animated value. When clipPath is active it handles rounding via `round`.
+    if (state.crop <= 0.001) {
+      const br = state.borderRadius > 0.1 ? state.borderRadius / Math.max(state.scale, 0.01) : 0;
+      img.style.borderRadius = br > 0.1 ? `${br}px` : '';
+    } else {
+      img.style.borderRadius = '';
     }
 
     // Chrome follows backdrop opacity during open/close.
@@ -2129,12 +2181,13 @@ export class Lightbox {
     this.dismiss = this.defaultDismissState();
 
     const thumbRect = this.state.triggerEl ? this.getThumbRect(this.state.triggerEl) : null;
+    const currentBR = this.getTargetBorderRadius();
 
     // Off-screen thumbnails — fade out in place
     if (!thumbRect || !this.isInViewport(thumbRect)) {
       this.animateSpring(
-        { translateX: offsetX, translateY: offsetY, scale, opacity, crop: 0 },
-        { translateX: offsetX, translateY: offsetY, scale, opacity: 0, crop: 0 },
+        { translateX: offsetX, translateY: offsetY, scale, opacity, crop: 0, borderRadius: currentBR },
+        { translateX: offsetX, translateY: offsetY, scale, opacity: 0, crop: 0, borderRadius: currentBR },
         this.opts.springClose,
         () => this.finishClose(),
         (s) => s.opacity < 0.01,
@@ -2185,8 +2238,8 @@ export class Lightbox {
     }
 
     this.animateSpring(
-      { translateX: offsetX, translateY: offsetY, scale, opacity, crop: 0 },
-      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0 },
+      { translateX: offsetX, translateY: offsetY, scale, opacity, crop: 0, borderRadius: currentBR },
+      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0, borderRadius: this.thumbBorderRadius },
       this.opts.springClose,
       () => this.finishClose(),
       atThumbnail,
@@ -2204,9 +2257,10 @@ export class Lightbox {
     // transition. This keeps it interruptible by a new dismiss gesture
     // (the user can grab the image mid-snap-back) while isAnimating=true
     // during the open animation correctly blocks dismiss tracking.
+    const targetBR = this.getTargetBorderRadius();
     this.animateSpring(
-      { translateX: offsetX, translateY: offsetY, scale, opacity, crop: 0 },
-      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0 },
+      { translateX: offsetX, translateY: offsetY, scale, opacity, crop: 0, borderRadius: targetBR },
+      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0, borderRadius: targetBR },
       SNAP_SPRING,
       () => {},
       undefined,
@@ -2461,6 +2515,8 @@ export class Lightbox {
       initialPanY: this.zoom.panY,
       initialMidX: midX,
       initialMidY: midY,
+      prevScale: this.zoom.scale,
+      prevScaleTime: performance.now(),
     };
   }
 
@@ -2476,10 +2532,16 @@ export class Lightbox {
     let newScale = this.pinch.initialScale * ratio;
     // Rubber-band past min/max
     if (newScale < 1) {
-      newScale = 1 - (1 - newScale) * PINCH_RUBBER_BAND_FACTOR;
+      // Lighter rubber band below 1 so pinch-to-close feels responsive
+      newScale = 1 - (1 - newScale) * PINCH_DISMISS_RUBBER_BAND_FACTOR;
     } else if (newScale > maxScale) {
       newScale = maxScale + (newScale - maxScale) * PINCH_RUBBER_BAND_FACTOR;
     }
+
+    // Track scale velocity for commit/snap-back decision on release
+    const now = performance.now();
+    this.pinch.prevScale = this.zoom.scale;
+    this.pinch.prevScaleTime = now;
 
     // Focal-point correction: keep the midpoint pinned to the same content
     const { fitRect } = this.zoom;
@@ -2506,10 +2568,20 @@ export class Lightbox {
     this.zoom.panY = panY;
     this.applyPanTransform();
 
-    // Fade chrome proportionally to zoom level
-    const chromeProgress = Math.min(1, Math.max(0, (newScale - 1) / 0.5));
-    this.chromeSpring = { position: chromeProgress, velocity: 0 };
-    this.updateChromeVisuals();
+    // Below fit scale: fade backdrop and chrome proportionally (pinch-to-close)
+    if (newScale < 1) {
+      const dismissProgress = 1 - newScale;
+      const opacity = Math.max(0, 1 - dismissProgress / 0.35);
+      this.backdrop!.style.opacity = String(opacity);
+      this.chromeBaseOpacity = opacity;
+      this.chromeSpring = { position: 0, velocity: 0 };
+      this.updateChromeVisuals();
+    } else {
+      // Fade chrome proportionally to zoom level
+      const chromeProgress = Math.min(1, Math.max(0, (newScale - 1) / 0.5));
+      this.chromeSpring = { position: chromeProgress, velocity: 0 };
+      this.updateChromeVisuals();
+    }
   }
 
   private endPinch(): void {
@@ -2519,9 +2591,17 @@ export class Lightbox {
     const maxScale = this.getMaxZoomScale();
 
     if (this.zoom.scale < 1) {
-      // Snap back to 1 (opened state)
-      this.springToZoomState(1, 0, 0, SNAP_SPRING, false);
-      this.animateChrome(0);
+      // Compute scale velocity from last frame
+      const dt = (performance.now() - this.pinch.prevScaleTime) / 1000;
+      const scaleVelocity = dt > 0.001 ? (this.zoom.scale - this.pinch.prevScale) / dt : 0;
+
+      if (this.zoom.scale < PINCH_CLOSE_SCALE || scaleVelocity < PINCH_CLOSE_VELOCITY) {
+        // Commit to close — bridge into dismiss path
+        this.pinchClose();
+      } else {
+        // Snap back to fit scale and restore backdrop/chrome
+        this.pinchSnapBack();
+      }
     } else if (this.zoom.scale > maxScale) {
       // Clamp to max scale, keep pan clamped
       const bounds = this.computePanBounds(maxScale);
@@ -2548,6 +2628,105 @@ export class Lightbox {
     // Don't auto-transition to single-finger drag — the second finger
     // lifting off produces noisy velocity that triggers unwanted momentum.
     // User can lift and re-place a finger to pan intentionally.
+  }
+
+  private pinchClose(): void {
+    this.debugLog('pinchClose');
+    this.state.isClosing = true;
+    this.emit('close');
+    this.state.isAnimating = true;
+    this.stopFitTransition();
+
+    // Stop any strip animation and reset
+    this.stopStripSpring();
+    this.stripOffset = 0;
+    if (this.stripEl) this.stripEl.style.transform = '';
+    this.swipeNav = this.defaultSwipeNavState();
+
+    if (this.overlay) {
+      const ov = this.overlay;
+      setTimeout(() => {
+        ov.style.pointerEvents = 'none';
+      }, 80);
+    }
+
+    // Current pinch state becomes the starting point for the close animation.
+    // panX/panY are in the same coordinate space as dismiss translateX/Y.
+    const { panX, panY, scale } = this.zoom;
+    const dismissProgress = 1 - scale;
+    const opacity = Math.max(0, 1 - dismissProgress / 0.35);
+
+    // Reset zoom state — animation system takes over via animateSpring
+    this.zoom.scale = 1;
+    this.zoom.panX = 0;
+    this.zoom.panY = 0;
+    this.zoom.zoomed = false;
+
+    const thumbRect = this.state.triggerEl ? this.getThumbRect(this.state.triggerEl) : null;
+    const currentBR = this.getTargetBorderRadius();
+
+    // Off-screen or no thumbnail — fade out in place
+    if (!thumbRect || !this.isInViewport(thumbRect)) {
+      this.animateSpring(
+        { translateX: panX, translateY: panY, scale, opacity, crop: 0, borderRadius: currentBR },
+        { translateX: panX, translateY: panY, scale, opacity: 0, crop: 0, borderRadius: currentBR },
+        this.opts.springClose,
+        () => this.finishClose(),
+        (s) => s.opacity < 0.01,
+      );
+      return;
+    }
+
+    // FLIP morph back to thumbnail
+    const { fitRect } = this.zoom;
+    const morphRect = this.isTextLink
+      ? this.textLinkFlipRect(thumbRect, this.zoom.naturalWidth, this.zoom.naturalHeight)
+      : thumbRect;
+
+    const flipX = morphRect.x + morphRect.width / 2 - (fitRect.x + fitRect.width / 2);
+    const flipY = morphRect.y + morphRect.height / 2 - (fitRect.y + fitRect.height / 2);
+
+    const { flipScale, hasCrop } = this.computeFlipCrop(
+      morphRect,
+      fitRect,
+      this.state.triggerEl,
+      this.isTextLink,
+    );
+
+    const atThumbnail = (s: AnimState) =>
+      Math.abs(s.scale - flipScale) < 0.05 &&
+      Math.abs(s.translateX - flipX) < 20 &&
+      Math.abs(s.translateY - flipY) < 20;
+
+    this.animateSpring(
+      { translateX: panX, translateY: panY, scale, opacity, crop: 0, borderRadius: currentBR },
+      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0, borderRadius: this.thumbBorderRadius },
+      this.opts.springClose,
+      () => this.finishClose(),
+      atThumbnail,
+    );
+  }
+
+  private pinchSnapBack(): void {
+    const { panX, panY, scale } = this.zoom;
+    const dismissProgress = 1 - scale;
+    const opacity = Math.max(0, 1 - dismissProgress / 0.35);
+
+    // Reset zoom to fit — the spring animates the visual recovery
+    this.zoom.scale = 1;
+    this.zoom.panX = 0;
+    this.zoom.panY = 0;
+    this.zoom.zoomed = false;
+
+    // Animate snap-back: image returns to center, backdrop restores.
+    // Don't set isAnimating so snap-back stays interruptible.
+    const targetBR = this.getTargetBorderRadius();
+    this.animateSpring(
+      { translateX: panX, translateY: panY, scale, opacity, crop: 0, borderRadius: targetBR },
+      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0, borderRadius: targetBR },
+      SNAP_SPRING,
+      () => {},
+    );
   }
 
   private springToZoomState(
@@ -3128,6 +3307,8 @@ export class Lightbox {
 
   /** Set the src and position for an adjacent slide's image. */
   private setupSlideImage(img: HTMLImageElement, item: GalleryItem): void {
+    const br = this.getTargetBorderRadius();
+    img.style.borderRadius = br > 0 ? `${br}px` : '';
     const cached = this.preloadCache.get(item.src);
     const fullResReady = cached?.complete && cached.naturalWidth > 0;
 
@@ -3223,6 +3404,21 @@ export class Lightbox {
   }
 
   // ─── Helpers ─────────────────────────────────────────────────
+
+  /** Target border-radius for the lightbox image: subtle rounding on desktop, none on mobile. */
+  private getTargetBorderRadius(): number {
+    return window.innerWidth > 600 ? DESKTOP_BORDER_RADIUS : 0;
+  }
+
+  /** Read the visual border-radius from the thumbnail's trigger element. */
+  private getThumbBorderRadius(el: HTMLElement): number {
+    // Check the trigger element first (wrapping anchor/div with overflow:hidden),
+    // then fall back to the image inside it.
+    const elRadius = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
+    if (elRadius > 0) return elRadius;
+    const img = el.querySelector('img');
+    return img ? parseFloat(getComputedStyle(img).borderTopLeftRadius) || 0 : 0;
+  }
 
   private getThumbRect(el: HTMLElement): DOMRect {
     const img = el.querySelector('img') as HTMLImageElement | null;
