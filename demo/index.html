@@ -7,13 +7,13 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Sono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="/dist/lightbox3.css">
   <style>
     :root {
       --font-body: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      --font-code: "Sono", "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+      --font-code: "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
       --color-text: #000;
       --color-text-secondary: #444;
       --color-text-muted: #999;
@@ -307,6 +307,50 @@
       .lead { font-size: 1.1em; }
     }
 
+    /* ——— Featured grid ——— */
+
+    .featured {
+      position: relative;
+      max-width: 60rem;
+      margin: 0 auto;
+      padding: 0 16px 2rem;
+      opacity: 0;
+    }
+
+    .featured-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      position: relative;
+    }
+
+    .featured-grid a {
+      display: block;
+      overflow: hidden;
+      aspect-ratio: 4 / 3;
+      background: var(--color-bg-hover);
+      border-radius: 8px;
+    }
+
+    .featured-grid img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      border-radius: 8px;
+      transition: transform 0.15s ease;
+    }
+
+    .featured-grid a:active img {
+      transform: scale(0.95);
+    }
+
+    @media (max-width: 719px) {
+      .featured-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
     /* ——— Sections ——— */
 
     section {
@@ -329,34 +373,28 @@
 
     .section-header {
       display: inline-flex;
-      align-items: center;
-      gap: 4px;
+      align-items: baseline;
+      gap: 6px;
       margin-bottom: 6px;
     }
 
     .section-number {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 1.6em;
-      height: 1.6em;
-      font-size: 1rem;
+      font-size: inherit;
       font-weight: 800;
-      color: #fff;
-      border-radius: 50%;
-      flex-shrink: 0;
+      color: inherit;
+    }
+
+    .section-number::after {
+      content: '.';
     }
 
     h2 {
       font-family: var(--font-body);
       display: inline-block;
-      font-size: 1rem;
+      font-size: 1.25rem;
       font-weight: 800;
       letter-spacing: -.01em;
       line-height: 1;
-      padding: 6px 14px;
-      border-radius: 99px;
-      color: #fff;
     }
 
     section > p {
@@ -367,43 +405,28 @@
       line-height: 1.5;
     }
 
-    /* Section heading pill colors — Examples (black), Getting Started (green), API (red) */
+    /* Section heading colors — Examples (black), Getting Started (green), API (red) */
     section:nth-of-type(1) h2,
-    section:nth-of-type(1) .section-number,
     section:nth-of-type(2) h2,
-    section:nth-of-type(2) .section-number,
     section:nth-of-type(3) h2,
-    section:nth-of-type(3) .section-number,
     section:nth-of-type(4) h2,
-    section:nth-of-type(4) .section-number,
     section:nth-of-type(5) h2,
-    section:nth-of-type(5) .section-number,
     section:nth-of-type(6) h2,
-    section:nth-of-type(6) .section-number,
     section:nth-of-type(7) h2,
-    section:nth-of-type(7) .section-number,
     section:nth-of-type(8) h2,
-    section:nth-of-type(8) .section-number,
-    section:nth-of-type(9) h2,
-    section:nth-of-type(9) .section-number,
-    section:nth-of-type(10) h2,
-    section:nth-of-type(10) .section-number { background: var(--color-text); }
-    section:nth-of-type(11) h2,
-    section:nth-of-type(11) .section-number { background: #4caf50; }
-    section:nth-of-type(12) h2,
-    section:nth-of-type(12) .section-number { background: #e8594f; }
+    section:nth-of-type(9) h2 { color: var(--color-text); }
+    section:nth-of-type(10) h2 { color: #4caf50; }
+    section:nth-of-type(11) h2 { color: #e8594f; }
 
-    /* Top-level section headers — colored pills on their own row */
+
+    /* Top-level section headers */
     .top-section-header,
-    section:nth-of-type(11) h2,
-    section:nth-of-type(12) h2 {
+    section:nth-of-type(10) h2,
+    section:nth-of-type(11) h2 {
       display: inline-block;
-      padding: 8px 16px;
-      font-size: 1.1rem;
+      font-size: 1.8rem;
       font-weight: 800;
       line-height: 1;
-      color: #fff;
-      border-radius: 99px;
     }
 
     .top-section-header {
@@ -444,13 +467,11 @@
     }
 
     code {
-      background-color: var(--color-bg-surface);
-      border: 1px solid var(--color-border-light);
-      border-radius: var(--radius-sm);
+      background-color: rgba(0, 0, 0, 0.04);
+      border-radius: 4px;
       font-family: var(--font-code);
       font-size: var(--text-sm);
       padding: 2px 6px;
-      color: var(--color-code-inline);
       line-height: 12px;
     }
 
@@ -541,15 +562,16 @@
     .options-table th,
     .options-table td {
       padding: .5rem .75rem;
-      border-bottom: 1px solid var(--color-border-light);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.06);
       font-size: .875rem;
       text-align: left;
       vertical-align: top;
     }
 
     .options-table th {
-      background: var(--color-bg-hover);
-      font-weight: 600;
+      font-weight: 500;
+      font-size: .8rem;
+      color: var(--color-text-secondary);
     }
 
     .options-table tr:last-child td {
@@ -748,6 +770,23 @@
     </div>
   </header>
 
+  <div class="featured">
+    <div class="featured-grid">
+      <a href="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=2400&q=80" data-lightbox="featured" data-caption="Swipe through images or use ← → arrow keys">
+        <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&h=450&fit=crop&q=80" alt="Dramatic mountain peaks above clouds">
+      </a>
+      <a href="https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=2400&q=80" data-lightbox="featured" data-caption="Pinch to zoom on touch, click to zoom on desktop">
+        <img src="https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=600&h=450&fit=crop&q=80" alt="Misty forest valley at dawn">
+      </a>
+      <a href="https://images.unsplash.com/photo-1433086966358-54859d0ed716?w=2400&q=80" data-lightbox="featured" data-caption="Drag to pan when zoomed in, momentum carries on release">
+        <img src="https://images.unsplash.com/photo-1433086966358-54859d0ed716?w=600&h=450&fit=crop&q=80" alt="Waterfall in lush green forest with bridge">
+      </a>
+      <a href="https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=2400&q=80" data-lightbox="featured" data-caption="Swipe down to dismiss, press Esc, or click the × button">
+        <img src="https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=600&h=450&fit=crop&q=80" alt="Rolling green hills under golden light">
+      </a>
+    </div>
+  </div>
+
   <div class="main">
     <nav class="mobile-nav">
       <div class="mobile-nav-scroll">
@@ -767,12 +806,11 @@
               <li class="nav-sub-item"><a href="#gallery" class="nav-link nav-link-sub" data-nav-target="gallery">2. Image set</a></li>
               <li class="nav-sub-item"><a href="#mixed-gallery" class="nav-link nav-link-sub" data-nav-target="mixed-gallery">3. Mixed aspect ratios</a></li>
               <li class="nav-sub-item"><a href="#zoom-pan" class="nav-link nav-link-sub" data-nav-target="zoom-pan">4. Zoom &amp; pan</a></li>
-              <li class="nav-sub-item"><a href="#text-links" class="nav-link nav-link-sub" data-nav-target="text-links">5. Text links</a></li>
-              <li class="nav-sub-item"><a href="#text-gallery" class="nav-link nav-link-sub" data-nav-target="text-gallery">6. Text link gallery</a></li>
-              <li class="nav-sub-item"><a href="#recipe-programmatic-open" class="nav-link nav-link-sub" data-nav-target="recipe-programmatic-open">7. Programmatic open</a></li>
-              <li class="nav-sub-item"><a href="#recipe-html-caption" class="nav-link nav-link-sub" data-nav-target="recipe-html-caption">8. HTML in captions</a></li>
-              <li class="nav-sub-item"><a href="#custom-springs" class="nav-link nav-link-sub" data-nav-target="custom-springs">9. Custom springs</a></li>
-              <li class="nav-sub-item"><a href="#events" class="nav-link nav-link-sub" data-nav-target="events">10. Events</a></li>
+              <li class="nav-sub-item"><a href="#recipe-programmatic-open" class="nav-link nav-link-sub" data-nav-target="recipe-programmatic-open">5. Programmatic open</a></li>
+              <li class="nav-sub-item"><a href="#recipe-html-caption" class="nav-link nav-link-sub" data-nav-target="recipe-html-caption">6. HTML in captions</a></li>
+              <li class="nav-sub-item"><a href="#custom-springs" class="nav-link nav-link-sub" data-nav-target="custom-springs">7. Custom springs</a></li>
+              <li class="nav-sub-item"><a href="#text-links" class="nav-link nav-link-sub" data-nav-target="text-links">8. Text links</a></li>
+              <li class="nav-sub-item"><a href="#events" class="nav-link nav-link-sub" data-nav-target="events">9. Events</a></li>
             </ul>
           </li>
           <li class="nav-list-item"><a href="#getting-started" class="nav-link">Getting started</a>
@@ -800,17 +838,16 @@
     <div class="content">
 
     <span id="examples"></span>
-    <div class="top-section-header" style="background: #4a7aed;">Examples</div>
+    <div class="top-section-header" style="color: #4a7aed;">Examples</div>
     <!-- ——— Single image ——— -->
     <section id="single-image">
       <div class="section-header"><span class="section-number">1</span>
       <h2>Single image</h2></div>
-      <p>The simplest use case. Use <code>data-alt</code> to set descriptive alt text on the full-size image.</p>
       <div class="image-row">
         <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-1.jpg"
            data-lightbox
            data-alt="A girl sits inside a beachside restaurant, looking out at sunbathers through a large window"
-           data-caption="Optional caption text">
+           data-caption="A girl sits inside a beachside restaurant in the south of France, gazing out through a large window at sunbathers scattered across the warm sand, the afternoon light casting long golden shadows across the scene while waves gently lap at the shore in the distance">
           <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-1.jpg" alt="Girl looking out at people on beach">
         </a>
       </div>
@@ -820,9 +857,9 @@
     <section id="gallery">
       <div class="section-header"><span class="section-number">2</span>
       <h2>Four image set</h2></div>
-      <p>Grouped as a navigable gallery. Use arrows or swipe to browse.</p>
+      <p>Swipe or use arrow keys to navigate.</p>
       <div class="gallery">
-        <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-3.jpg" data-lightbox="gallery-1" data-caption="Golden Gate Bridge at sunrise">
+        <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-3.jpg" data-lightbox="gallery-1" data-caption="The Golden Gate Bridge at sunrise, its iconic vermillion towers rising through a thin layer of fog rolling in from the Pacific Ocean while early morning commuters cross the span and sailboats dot the bay below, the city of San Francisco glimmering softly in the background as the first rays of sunlight paint the sky in shades of amber, rose, and pale violet, casting long reflections across the calm waters of the Golden Gate strait">
           <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-3.jpg" alt="Golden Gate Bridge with San Francisco in distance">
         </a>
         <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-4.jpg" data-lightbox="gallery-1" data-caption="Forest canopy with mountain backdrop">
@@ -841,7 +878,7 @@
     <section id="mixed-gallery">
       <div class="section-header"><span class="section-number">3</span>
       <h2>Mixed aspect ratios</h2></div>
-      <p>Portrait, landscape, and square images in a single gallery. Each opens at its natural ratio.</p>
+      <p>Portrait, landscape, square. Any aspect ratio works.</p>
       <div class="mixed-gallery">
         <a href="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=2400&q=80" data-lightbox="mixed" data-caption="Sunlit mountain valley" style="width: 210px;"><img src="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=420&h=280&fit=crop&q=80" alt="Sunlit mountain valley"></a>
         <a href="https://images.unsplash.com/photo-1414609245224-afa02bfb3fda?w=2400&q=80" data-lightbox="mixed" data-caption="Ocean cliffs at sunset" style="width: 94px;"><img src="https://images.unsplash.com/photo-1414609245224-afa02bfb3fda?w=188&h=280&fit=crop&q=80" alt="Ocean cliffs at sunset"></a>
@@ -858,71 +895,21 @@
     <section id="zoom-pan">
       <div class="section-header"><span class="section-number">4</span>
       <h2>Zoom &amp; pan</h2></div>
-      <p>Click or tap the opened image to zoom to full resolution. Drag to pan around. Double-click or pinch on touch devices.</p>
+      <p>Click or double-tap to zoom to full resolution. Pinch to zoom on touch. Drag to pan when zoomed.</p>
       <div class="image-row">
         <a href="https://images.unsplash.com/photo-1682687220742-aba13b6e50ba?w=3600&q=90"
            data-lightbox
-           data-caption="Antelope Canyon — click to zoom in, drag to explore">
+           data-caption="Antelope Canyon">
           <img src="https://images.unsplash.com/photo-1682687220742-aba13b6e50ba?w=560&h=400&fit=crop&q=80" alt="Antelope Canyon light beams" style="width: 280px; height: 200px;">
         </a>
       </div>
     </section>
 
-    <!-- ——— Text links ——— -->
-    <section id="text-links">
-      <div class="section-header"><span class="section-number">5</span>
-      <h2>Text links</h2></div>
-      <p>Links without thumbnails open with a fade instead of a morph.</p>
-      <div class="text-links">
-        <ul>
-          <li><a href="https://images.unsplash.com/photo-1542224566-6e85f2e6772f?w=2400&q=80" data-lightbox>Cherry blossoms in bloom</a></li>
-          <li><a href="https://images.unsplash.com/photo-1546026423-cc4642628d2b?w=2400&q=80" data-lightbox>Coral reef underwater</a></li>
-          <li><a href="https://images.unsplash.com/photo-1534067783941-51c9c23ecefd?w=2400&q=80" data-lightbox>Lightning over the plains</a></li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- ——— Text link gallery ——— -->
-    <section id="text-gallery">
-      <div class="section-header"><span class="section-number">6</span>
-      <h2>Text links — gallery</h2></div>
-      <p>Text links grouped as a navigable set.</p>
-      <div class="text-links">
-        <ul>
-          <li><a href="https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=2400&q=80" data-lightbox="text-gallery" data-caption="Lavender fields at sunset">Lavender fields at sunset</a></li>
-          <li><a href="https://images.unsplash.com/photo-1507608616759-54f48f0af0ee?w=2400&q=80" data-lightbox="text-gallery" data-caption="Hot air balloons over valley">Hot air balloons over valley</a></li>
-          <li><a href="https://images.unsplash.com/photo-1520962880247-cfaf541c8724?w=2400&q=80" data-lightbox="text-gallery" data-caption="Rice terraces from above">Rice terraces from above</a></li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- ——— Programmatic open ——— -->
-    <section id="recipe-programmatic-open">
-      <div class="section-header"><span class="section-number">7</span>
-      <h2>Programmatic open</h2></div>
-      <p>Open an image from code without a <code>[data-lightbox]</code> element on the page. The image fades in from center.</p>
-
-      <p><button id="programmatic-open-btn" style="
-        font-family: var(--font-body);
-        font-size: .9rem;
-        font-weight: 600;
-        padding: 8px 16px;
-        border-radius: var(--radius-sm);
-        border: 1px solid var(--color-border);
-        background: var(--color-bg-surface);
-        color: var(--color-text);
-        cursor: pointer;
-      ">Open image via API</button></p>
-
-      <pre class="code-block"><code class="language-javascript">const lb = Lightbox.init();
-lb.open('https://example.com/photo.jpg');</code></pre>
-    </section>
-
     <!-- ——— HTML in captions ——— -->
     <section id="recipe-html-caption">
-      <div class="section-header"><span class="section-number">8</span>
+      <div class="section-header"><span class="section-number">5</span>
       <h2>HTML in captions</h2></div>
-      <p>Captions support HTML, so you can include links, emphasis, or other inline markup.</p>
+      <p>Captions support links and line breaks.</p>
 
       <div class="image-row">
         <a href="https://lokeshdhakar.com/projects/lightbox2/images/image-1.jpg"
@@ -941,9 +928,9 @@ lb.open('https://example.com/photo.jpg');</code></pre>
 
     <!-- ——— Custom springs ——— -->
     <section id="custom-springs">
-      <div class="section-header"><span class="section-number">9</span>
+      <div class="section-header"><span class="section-number">6</span>
       <h2>Custom springs</h2></div>
-      <p>Tune the feel of open and close animations with spring physics. Select a preset, then click the image.</p>
+      <p>Select a preset, then click the image to feel the difference.</p>
 
       <div class="spring-presets">
         <button class="spring-preset-btn active" data-preset="default">Default</button>
@@ -965,11 +952,47 @@ lb.open('https://example.com/photo.jpg');</code></pre>
 });</code></pre>
     </section>
 
+    <!-- ——— Text links ——— -->
+    <section id="text-links">
+      <div class="section-header"><span class="section-number">7</span>
+      <h2>Text links</h2></div>
+      <p>Links without thumbnails fade in instead of morphing from a source element.</p>
+      <div class="text-links">
+        <ul>
+          <li><a href="https://images.unsplash.com/photo-1542224566-6e85f2e6772f?w=2400&q=80" data-lightbox>Cherry blossoms in bloom</a></li>
+          <li><a href="https://images.unsplash.com/photo-1546026423-cc4642628d2b?w=2400&q=80" data-lightbox>Coral reef underwater</a></li>
+          <li><a href="https://images.unsplash.com/photo-1534067783941-51c9c23ecefd?w=2400&q=80" data-lightbox>Lightning over the plains</a></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ——— Programmatic open ——— -->
+    <section id="recipe-programmatic-open">
+      <div class="section-header"><span class="section-number">8</span>
+      <h2>Programmatic open</h2></div>
+      <p>Open images from code. Without a trigger element, the image fades in from center.</p>
+
+      <p><button id="programmatic-open-btn" style="
+        font-family: var(--font-body);
+        font-size: .9rem;
+        font-weight: 600;
+        padding: 8px 16px;
+        border-radius: 99px;
+        border: 1px solid var(--color-border);
+        background: var(--color-bg-surface);
+        color: var(--color-text);
+        cursor: pointer;
+      ">Open image via API</button></p>
+
+      <pre class="code-block"><code class="language-javascript">const lb = Lightbox.init();
+lb.open('https://example.com/photo.jpg');</code></pre>
+    </section>
+
     <!-- ——— Events ——— -->
     <section id="events">
-      <div class="section-header"><span class="section-number">10</span>
+      <div class="section-header"><span class="section-number">9</span>
       <h2>Events</h2></div>
-      <p>Subscribe to lifecycle events. Open, zoom, and navigate any image above to see events logged here.</p>
+      <p>Interact with any image above to see events logged here.</p>
 
       <div id="event-log" class="event-log"><span class="event-log-placeholder">Interact with any image above...</span></div>
 
@@ -1264,6 +1287,8 @@ const lb = Lightbox.init();</code></pre>
       if (title) title.style.opacity = '1';
       var credit = document.querySelector('.logo-credit');
       if (credit) credit.style.opacity = '1';
+      var featured = document.querySelector('.featured');
+      if (featured) featured.style.opacity = '1';
       var main = document.querySelector('.main');
       if (main) main.style.opacity = '1';
       return;
@@ -1402,11 +1427,24 @@ const lb = Lightbox.init();</code></pre>
       });
     });
 
-    // 6) Fade in page content after intro completes
+    // 6) Fade in featured grid
+    after(titleRevealTime + 900, function () {
+      var featuredEl = document.querySelector('.featured');
+      if (featuredEl) {
+        animateSpring(FADE_SPRING, function (v) {
+          featuredEl.style.opacity = Math.min(v, 1);
+          featuredEl.style.transform = 'translateY(' + ((1 - Math.min(v, 1)) * 12) + 'px)';
+        });
+      }
+    });
+
+    // 7) Fade in page content after intro completes
     after(titleRevealTime + 1000, function () {
       var main = document.querySelector('.main');
       if (main) main.style.opacity = '1';
     });
+
+
   })();
   </script>
 

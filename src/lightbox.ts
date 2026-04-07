@@ -1,4 +1,4 @@
-import { springStep, SPRING_MORPH, SPRING_OPEN, SPRING_CLOSE } from './physics/spring';
+import { springStep, SPRING_OPEN, SPRING_CLOSE } from './physics/spring';
 import type { SpringConfig, SpringState, SpringStepResult } from './physics/spring';
 // Note: easing.ts is no longer used — all animations are rAF + spring physics
 
@@ -691,18 +691,21 @@ export class Lightbox {
     this.populateAdjacentSlides();
 
     // Start spring from FLIP position → identity.
-    // earlyComplete fires when visually done — don't wait for the spring tail
-    // to clear isAnimating, or dismiss tracking will be blocked.
+    // onEarlyComplete fires when visually done (opacity ≈ 1) — clears isAnimating
+    // so dismiss tracking isn't blocked, but the spring keeps bouncing visually.
     const openVisuallyDone = (s: AnimState) => s.opacity > 0.99;
     this.animateSpring(
       { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0, borderRadius: this.thumbBorderRadius },
       { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0, borderRadius: this.getTargetBorderRadius() },
-      SPRING_MORPH,
+      this.opts.springOpen,
       () => {
         this.state.isAnimating = false;
         this.updateCursorState();
         this.emit('opened');
       },
+      undefined,
+      undefined,
+      undefined,
       openVisuallyDone,
     );
   }
@@ -801,17 +804,20 @@ export class Lightbox {
     const flipX = flipRect.x + flipRect.width / 2 - (targetRect.x + targetRect.width / 2);
     const flipY = flipRect.y + flipRect.height / 2 - (targetRect.y + targetRect.height / 2);
 
-    const openVisuallyDone = (s: AnimState) => s.opacity > 0.99;
     const targetBR = this.getTargetBorderRadius();
+    const openVisuallyDone = (s: AnimState) => s.opacity > 0.99;
     this.animateSpring(
       { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: 0, borderRadius: 0 },
       { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0, borderRadius: targetBR },
-      SPRING_MORPH,
+      this.opts.springOpen,
       () => {
         this.state.isAnimating = false;
         this.updateCursorState();
         this.emit('opened');
       },
+      undefined,
+      undefined,
+      undefined,
       openVisuallyDone,
     );
   }
@@ -1373,6 +1379,7 @@ export class Lightbox {
     earlyComplete?: (current: AnimState) => boolean,
     initialVelocities?: Partial<AnimState>,
     configOverrides?: Partial<Record<keyof AnimState, SpringConfig>>,
+    onEarlyComplete?: (current: AnimState) => boolean,
   ): void {
     this.stopSpring();
 
@@ -1431,6 +1438,7 @@ export class Lightbox {
     ];
 
     let lastTime = performance.now();
+    let firedEarlyComplete = false;
 
     // Apply initial state
     this.applyAnimState(img, backdrop, from);
@@ -1452,12 +1460,19 @@ export class Lightbox {
       const currentState = current as unknown as AnimState;
       this.applyAnimState(img, backdrop, currentState);
 
+      // onEarlyComplete: fire onComplete early but keep the spring running
+      // (used by open animation to unblock interaction while bounce continues)
+      if (!firedEarlyComplete && onEarlyComplete?.(currentState)) {
+        firedEarlyComplete = true;
+        onComplete();
+      }
+
       if (allSettled || earlyComplete?.(currentState)) {
         // Snap to exact final values
         this.applyAnimState(img, backdrop, to);
         this.debugLog(`mainRaf settled${earlyComplete?.(currentState) ? ' (early)' : ''}`);
         this.rafId = null;
-        onComplete();
+        if (!firedEarlyComplete) onComplete();
         return;
       }
 

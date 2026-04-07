@@ -1,24 +1,9 @@
-# lightbox3
-Planning ahead :-)
+# Lightbox3
 
+A modern image lightbox with spring-physics animations and native-feeling touch interactions.
 
-https://fancyapps.com/fancybox/guides/images/
-https://photoswipe.com/
-https://motion.dev/examples/react-carousel-lightbox
+- **Demos and usage instructions.** Visit the [Lightbox3 homepage](https://lokeshdhakar.com/projects/lightbox3/) to see examples, info on getting started, and more.
+- **Issues.** Report bugs or request features on the [GitHub Issues page](https://github.com/lokesh/lightbox3/issues).
+- **License.** Lightbox3 is licensed under the [MIT License](LICENSE).
 
-
-## Positioning
-
-1. Effortless Setup — The easiest lightbox to implement, period.
-
-The original Lightbox succeeded because it was a script tag and one HTML attribute. Lightbox3 should honor that legacy. Target: working lightbox in under 60 seconds, zero configuration required.
-
-2. Best-in-Class Touch Physics — Interactions that feel native.
-
-Not just "swipe works" — real spring physics, momentum, drag-to-dismiss that feels like throwing a card off the screen. The kind of interaction quality that makes people tweet about it. The gap between web and native closes here.
-
-Strategic Positioning Statement
-
-
-
-Lightbox3 is the modern image lightbox that takes 30 seconds to set up and feels like a native app on mobile. Built on web platform APIs by the creator of the original Lightbox.
+by [Lokesh Dhakar](https://lokeshdhakar.com)

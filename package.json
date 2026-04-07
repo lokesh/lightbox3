@@ -1,6 +1,6 @@
 {
   "name": "lightbox3",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Modern image lightbox with physics-based touch interactions",
   "author": "Lokesh Dhakar",
   "license": "MIT",
@@ -33,7 +33,9 @@
     "test:e2e": "playwright test",
     "lint": "eslint src/",
     "format": "prettier --write 'src/**/*.{ts,css}'",
-    "format:check": "prettier --check 'src/**/*.{ts,css}'"
+    "format:check": "prettier --check 'src/**/*.{ts,css}'",
+    "build:site": "bash scripts/build-site.sh",
+    "deploy": "bash scripts/deploy.sh"
   },
   "repository": {
     "type": "git",

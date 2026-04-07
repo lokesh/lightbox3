@@ -6,7 +6,7 @@
   --lb-chrome-text: rgba(255, 255, 255, 0.9);
   --lb-chrome-font-size: 15px;
   --lb-chrome-padding: 16px;
-  --lb-chrome-border-radius: 999px;
+  --lb-chrome-border-radius: 48px;
 
   position: fixed;
   inset: 0;
@@ -90,7 +90,7 @@
   line-height: 1;
   user-select: none;
   pointer-events: none;
-  white-space: nowrap;
+  width: max-content;
   max-width: min(90vw, 600px);
   z-index: 1;
 }
@@ -103,14 +103,17 @@
   color: rgba(255, 255, 255, 0.55);
   font-variant-numeric: tabular-nums;
   font-size: 14px;
+  letter-spacing: 0.01em;
 }
 
 .lightbox3-caption {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 10;
+  line-height: 1.3;
   color: rgba(255, 255, 255, 0.9);
   pointer-events: auto;
 }

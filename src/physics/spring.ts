@@ -1,7 +1,7 @@
 export interface SpringConfig {
   stiffness: number;
   damping: number;
-  mass: number;
+  mass?: number;
 }
 
 export interface SpringState {
@@ -24,7 +24,7 @@ export function springStep(
   target: number,
   dt: number,
 ): SpringStepResult {
-  const { stiffness: k, damping: c, mass: m } = config;
+  const { stiffness: k, damping: c, mass: m = 1 } = config;
 
   if (dt > MAX_DT) {
     let current: SpringState = { ...state };

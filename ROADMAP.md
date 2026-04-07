@@ -1,23 +1,3 @@
-# Lightbox3 Roadmap
-
-## Current state
-
-Single-image lightbox with spring-physics FLIP morph, pinch/double-tap zoom, pan with momentum and snap-back, hover-triggered preloading, and `object-fit: cover` crop animation. ~600 lines, zero dependencies.
-
----
-
-## Essential features
-
-These are table-stakes for a modern lightbox. Without them, users will pick a more complete alternative.
-
-### 1. Gallery support with swipe navigation
-
-Navigate between images in a set. Horizontal swipe on touch, arrow keys + on-screen arrows on desktop. The current single-image architecture needs a slide rail that positions off-screen images left/right and animates them in with springs.
-
-- Group images via a shared `data-lightbox="gallery-name"` attribute
-- Preload adjacent slides directionally (more ahead of swipe direction)
-- Allow swipe-to-next while zoomed (PhotoSwipe's `allowPanToNext` pattern)
-- Counter display (e.g. "3 / 12")
 
 ### 2. Smarter preloading
 
@@ -40,47 +20,6 @@ When the full-res image hasn't loaded yet, the opening animation can't calculate
 - Use provided dimensions to compute the FLIP target rect immediately
 - Fall back to thumbnail `naturalWidth`/`naturalHeight` (current behavior)
 - Spring-animate rect changes if the actual image has different dimensions than the hint
-
-### 4. Swipe-to-dismiss
-
-Drag the image down to close. This is the most expected gesture on mobile — iOS Photos, Android, and every native image viewer uses it. Lightbox3 already has the spring engine, momentum system, and pointer tracking needed.
-
-- In the opened (non-zoomed) state, track vertical drag
-- As the user drags: translate the image, scale it down slightly, fade the backdrop
-- On release: check velocity and distance thresholds
-- If dismissing: feed release velocity into the close spring
-- If not: spring back to center
-- Integrates naturally with `SPRING_CLOSE` preset and the `isClosing` reentrant guard
-
-### 5. Placeholder / blur-up support
-
-Eliminate the blank flash when the full-res image hasn't loaded yet. Show something immediately.
-
-- Support `data-thumbhash="..."` for ThumbHash-encoded placeholders (~2KB decode logic)
-- Alternative: use the thumbnail itself as a blurry placeholder scaled up during the morph
-- Crossfade to full-res once decoded
-- Acts as fallback when hover preload didn't complete in time
-
-### 6. Accessibility
-
-A lightbox is a modal dialog. It needs proper accessibility to be usable by everyone.
-
-- `role="dialog"` + `aria-modal="true"` on the overlay
-- Focus trap cycling through close/prev/next controls
-- `returnFocus` to the triggering element on close
-- `aria-label` on all interactive elements
-- `aria-live="polite"` on counter/caption for screen reader announcements
-- `prefers-reduced-motion`: disable or reduce animations (instant show/hide)
-- ESC to close, arrow keys to navigate (already partially implemented)
-
-### 7. Captions
-
-Display image captions/descriptions below the image.
-
-- Read from `data-caption`, `alt` attribute, or `<figcaption>` sibling
-- Fade in with the image, positioned below
-- Allow HTML content for rich captions
-- Animate caption changes on slide navigation
 
 ### 8. Loading indicator
 
