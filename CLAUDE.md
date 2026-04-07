@@ -17,7 +17,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `src/lightbox.ts` — Core `Lightbox` class: open/close morph, zoom, pan with momentum, preloading. All animation via rAF + spring physics.
 - `src/physics/spring.ts` — Damped harmonic oscillator (`springStep`) using semi-implicit Euler integration. Spring presets and types.
 - `src/style.css` — Overlay/backdrop/image styles, chrome UI (caption bar, close button, nav arrows, counter). Extracted to `dist/lightbox3.css` by PostCSS.
-- `src/easing.ts` — Legacy, unused. All animations use springs.
 
 ## Vocabulary
 
@@ -134,7 +133,6 @@ No tests for now. Do not add or suggest tests.
 ### Spring presets
 
 Exported from `spring.ts`:
-- `SPRING_MORPH` (stiffness: 170, damping: 18) — FLIP morph open/close
 - `SPRING_OPEN` (stiffness: 260, damping: 26) — zoom in
 - `SPRING_CLOSE` (stiffness: 500, damping: 38) — zoom out
 
