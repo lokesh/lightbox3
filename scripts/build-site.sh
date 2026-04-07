@@ -12,9 +12,13 @@ mkdir -p site
 cp dist/lightbox3.esm.js site/
 cp dist/lightbox3.css site/
 
+# Copy favicon
+cp demo/favicon.png site/
+
 # Copy demo page and rewrite paths for flat structure
 sed -e 's|/dist/lightbox3.css|./lightbox3.css|g' \
     -e 's|/dist/lightbox3.esm.js|./lightbox3.esm.js|g' \
+    -e 's|/demo/favicon.png|./favicon.png|g' \
     demo/index.html > site/index.html
 
 echo "Site built in site/"

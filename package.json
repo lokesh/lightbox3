@@ -4,14 +4,26 @@
   "description": "Modern image lightbox with physics-based touch interactions",
   "author": "Lokesh Dhakar",
   "license": "MIT",
+  "keywords": [
+    "lightbox",
+    "image",
+    "gallery",
+    "zoom",
+    "modal",
+    "viewer",
+    "responsive",
+    "touch",
+    "pinch-to-zoom",
+    "swipe"
+  ],
   "type": "module",
   "main": "dist/lightbox3.umd.js",
   "module": "dist/lightbox3.esm.js",
-  "types": "dist/lightbox3.d.ts",
+  "types": "dist/index.d.ts",
   "style": "dist/lightbox3.css",
   "exports": {
     ".": {
-      "types": "./dist/lightbox3.d.ts",
+      "types": "./dist/index.d.ts",
       "import": "./dist/lightbox3.esm.js",
       "require": "./dist/lightbox3.umd.js"
     },
