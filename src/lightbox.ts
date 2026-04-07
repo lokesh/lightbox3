@@ -3578,10 +3578,9 @@ export class Lightbox {
     return { flipScale: Math.min(scaleX, scaleY), hasCrop: false };
   }
 
-  private setThumbVisibility(visible: boolean): void {
-    if (!this.state.triggerEl) return;
-    const img = this.state.triggerEl.querySelector('img') || this.state.triggerEl;
-    (img as HTMLElement).style.visibility = visible ? '' : 'hidden';
+  private setThumbVisibility(_visible: boolean): void {
+    // Thumbnails stay visible at all times — the lightbox image
+    // animates above them, giving a "lift off / land back" effect.
   }
 
   private computeTargetRect(naturalWidth: number, naturalHeight: number): DOMRect {
