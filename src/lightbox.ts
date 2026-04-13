@@ -56,6 +56,7 @@ interface LightboxState {
   isOpen: boolean;
   isAnimating: boolean;
   isClosing: boolean;
+  isDismissClosing: boolean;
   triggerEl: HTMLElement | null;
   currentSrc: string;
 }
@@ -160,6 +161,7 @@ export class Lightbox {
     isOpen: false,
     isAnimating: false,
     isClosing: false,
+    isDismissClosing: false,
     triggerEl: null,
     currentSrc: '',
   };
@@ -528,6 +530,7 @@ export class Lightbox {
       this.stopStripSpring();
       this.state.isAnimating = false;
       this.state.isClosing = false;
+      this.state.isDismissClosing = false;
       this.finishClose();
     }
 
@@ -1088,6 +1091,7 @@ export class Lightbox {
     this.state.isOpen = false;
     this.state.isAnimating = false;
     this.state.isClosing = false;
+    this.state.isDismissClosing = false;
     this.state.triggerEl = null;
     this.zoom = this.defaultZoomState();
     this.pointerCache = [];
@@ -1493,9 +1497,18 @@ export class Lightbox {
     img.style.transform = `translate(${state.translateX}px, ${state.translateY}px) scale(${state.scale})`;
     backdrop.style.opacity = String(state.opacity);
 
-    img.style.opacity = this.isTextLink
-      ? String(Math.min(1, state.opacity / TEXT_LINK_OPACITY_THRESHOLD))
-      : '';
+    if (this.isTextLink) {
+      img.style.opacity = String(Math.min(1, state.opacity / TEXT_LINK_OPACITY_THRESHOLD));
+    } else if (this.state.isClosing && !this.state.isDismissClosing && window.innerWidth <= 600) {
+      // Mobile: thumbnail stays visible during close, so fade the image in
+      // the final stretch to ease the handoff rather than snapping away.
+      const CLOSE_IMG_FADE = 0.02;
+      img.style.opacity = state.opacity < CLOSE_IMG_FADE
+        ? String(state.opacity / CLOSE_IMG_FADE)
+        : '';
+    } else {
+      img.style.opacity = '';
+    }
 
     if (state.crop > 0.001) {
       const { top, right, bottom, left } = this.cropInsets;
@@ -2199,6 +2212,7 @@ export class Lightbox {
   private dismissClose(velocityX: number, velocityY: number): void {
     this.debugLog('dismissClose');
     this.state.isClosing = true;
+    this.state.isDismissClosing = true;
     this.emit('close');
     this.state.isAnimating = true;
     this.stopFitTransition();
@@ -2674,6 +2688,7 @@ export class Lightbox {
   private pinchClose(): void {
     this.debugLog('pinchClose');
     this.state.isClosing = true;
+    this.state.isDismissClosing = true;
     this.emit('close');
     this.state.isAnimating = true;
     this.stopFitTransition();
