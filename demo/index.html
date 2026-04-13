@@ -1222,6 +1222,7 @@ const lb = Lightbox.init();</code></pre>
   (function () {
     var hasSeenIntro = false;
     try { hasSeenIntro = localStorage.getItem('lb3-intro-seen') === '1'; } catch (e) {}
+    if (window.location.hash) hasSeenIntro = true;
 
     if (hasSeenIntro) {
       // Skip animation — show everything immediately
@@ -1238,6 +1239,7 @@ const lb = Lightbox.init();</code></pre>
       if (featured) featured.style.opacity = '1';
       var main = document.querySelector('.main');
       if (main) main.style.opacity = '1';
+      try { localStorage.setItem('lb3-intro-seen', '1'); } catch (e) {}
       return;
     }
 
