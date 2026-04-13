@@ -48,9 +48,8 @@ const SPINNER_DELAY_MS = 300;
 // visible through ~80% of the close animation and fades quickly at the end.
 const TEXT_LINK_OPACITY_THRESHOLD = 0.2;
 
-// Default border-radius for lightbox images on desktop (px).
-// On mobile (≤600px) the image goes edge-to-edge, so radius is 0.
-const DESKTOP_BORDER_RADIUS = 24;
+// Default border-radius for lightbox images, read from --lb-image-border-radius.
+const DEFAULT_IMAGE_BORDER_RADIUS = 24;
 
 interface LightboxState {
   isOpen: boolean;
@@ -3486,9 +3485,22 @@ export class Lightbox {
 
   // ─── Helpers ─────────────────────────────────────────────────
 
-  /** Target border-radius for the lightbox image: subtle rounding on desktop, none on mobile. */
+  /** Target border-radius for the lightbox image, read from --lb-image-border-radius CSS property. */
   private getTargetBorderRadius(): number {
-    return window.innerWidth > 600 ? DESKTOP_BORDER_RADIUS : 0;
+    if (this.overlay) {
+      const value = getComputedStyle(this.overlay).getPropertyValue('--lb-image-border-radius');
+      if (value) return parseFloat(value) || 0;
+    }
+    return DEFAULT_IMAGE_BORDER_RADIUS;
+  }
+
+  /** Viewport padding around the lightbox image, read from --lb-image-padding CSS property. */
+  private getTargetImagePadding(): number {
+    if (this.overlay) {
+      const value = getComputedStyle(this.overlay).getPropertyValue('--lb-image-padding');
+      if (value) return parseFloat(value) || 0;
+    }
+    return this.opts.padding;
   }
 
   /** Read the visual border-radius from the thumbnail's trigger element. */
@@ -3628,10 +3640,8 @@ export class Lightbox {
   private computeTargetRect(naturalWidth: number, naturalHeight: number): DOMRect {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const isMobile = vw <= 600;
-    const px = isMobile ? 0 : this.opts.padding;
-    const py = isMobile ? 20 : this.opts.padding;
-    const scale = Math.min((vw - px * 2) / naturalWidth, (vh - py * 2) / naturalHeight, 1);
+    const p = this.getTargetImagePadding();
+    const scale = Math.min((vw - p * 2) / naturalWidth, (vh - p * 2) / naturalHeight, 1);
     const w = naturalWidth * scale;
     const h = naturalHeight * scale;
     return new DOMRect((vw - w) / 2, (vh - h) / 2, w, h);
@@ -3642,10 +3652,8 @@ export class Lightbox {
   private computeTargetRectFromAspectRatio(width: number, height: number): DOMRect {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const isMobile = vw <= 600;
-    const px = isMobile ? 0 : this.opts.padding;
-    const py = isMobile ? 20 : this.opts.padding;
-    const scale = Math.min((vw - px * 2) / width, (vh - py * 2) / height);
+    const p = this.getTargetImagePadding();
+    const scale = Math.min((vw - p * 2) / width, (vh - p * 2) / height);
     const w = width * scale;
     const h = height * scale;
     return new DOMRect((vw - w) / 2, (vh - h) / 2, w, h);

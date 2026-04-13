@@ -1,16 +1,19 @@
 /* ===== Lightbox3 ===== */
 
 .lightbox3-overlay {
-  --lb-backdrop-color: rgba(0, 0, 0, 0.90);
+  --lb-backdrop-color: rgba(0, 0, 0, 0.95);
   --lb-chrome-bg: rgba(24, 24, 24, 0.8);
   --lb-chrome-text: rgba(255, 255, 255, 0.9);
   --lb-chrome-font-size: 15px;
   --lb-chrome-padding: 16px;
   --lb-chrome-border-radius: 48px;
+  --lb-image-border-radius: 24px;
+  --lb-image-padding: 40px;
+  --lb-z-index: 999999;
 
   position: fixed;
   inset: 0;
-  z-index: 999999;
+  z-index: var(--lb-z-index);
   -webkit-tap-highlight-color: transparent;
   overflow: hidden;
   touch-action: none;
@@ -215,6 +218,11 @@
 }
 
 @media (max-width: 600px) {
+  .lightbox3-overlay {
+    --lb-image-border-radius: 16px;
+    --lb-image-padding: 8px;
+  }
+
   .lightbox3-arrow {
     display: none;
   }

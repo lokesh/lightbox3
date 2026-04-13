@@ -723,7 +723,7 @@
       font-weight: 700;
       padding: 6px 14px;
       border-radius: 99px;
-      border: 1px solid var(--color-border);
+      border: 2px solid var(--color-border);
       background: var(--color-bg-surface);
       color: var(--color-text);
       cursor: pointer;
@@ -835,6 +835,7 @@
               <li class="nav-sub-item"><a href="#api-options" class="nav-link nav-link-sub" data-nav-target="api">Options</a></li>
               <li class="nav-sub-item"><a href="#api-methods" class="nav-link nav-link-sub" data-nav-target="api">Methods</a></li>
               <li class="nav-sub-item"><a href="#api-events" class="nav-link nav-link-sub" data-nav-target="api">Events</a></li>
+              <li class="nav-sub-item"><a href="#api-css" class="nav-link nav-link-sub" data-nav-target="api">CSS custom properties</a></li>
             </ul>
           </li>
         </ul>
@@ -892,6 +893,8 @@
           <img src="https://lokeshdhakar.com/projects/lightbox2/images/thumb-1.jpg" alt="Girl looking out at people on beach">
         </a>
       </div>
+
+      <div style="margin-bottom: 24px;"></div>
 
       <pre class="code-block"><code class="language-html">&lt;a href="photo.jpg"
    data-lightbox
@@ -952,7 +955,7 @@
         font-weight: 600;
         padding: 8px 16px;
         border-radius: 99px;
-        border: 1px solid var(--color-border);
+        border: 2px solid var(--color-border);
         background: var(--color-bg-surface);
         color: var(--color-text);
         cursor: pointer;
@@ -1172,6 +1175,59 @@ const lb = Lightbox.init();</code></pre>
       </table>
 
       <p>Subscribe with <code>lb.on(event, callback)</code> and unsubscribe with <code>lb.off(event, callback)</code>. Callbacks receive a <code>{ src, triggerEl, index, total }</code> detail object.</p>
+
+      <h3 id="api-css">CSS custom properties</h3>
+      <p>Override these on <code>:root</code> or any parent element to customize the lightbox appearance.</p>
+      <table class="options-table">
+        <thead><tr><th>Property</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>--lb-backdrop-color</code></td>
+            <td><code>rgba(0, 0, 0, 0.95)</code></td>
+            <td>Overlay backdrop color.</td>
+          </tr>
+          <tr>
+            <td><code>--lb-image-border-radius</code></td>
+            <td><code>24px</code></td>
+            <td>Border radius of the opened image.</td>
+          </tr>
+          <tr>
+            <td><code>--lb-image-padding</code></td>
+            <td><code>40px</code></td>
+            <td>Padding between the image and viewport edges.</td>
+          </tr>
+          <tr>
+            <td><code>--lb-chrome-bg</code></td>
+            <td><code>rgba(24, 24, 24, 0.8)</code></td>
+            <td>Background color of the caption bar.</td>
+          </tr>
+          <tr>
+            <td><code>--lb-chrome-text</code></td>
+            <td><code>rgba(255, 255, 255, 0.9)</code></td>
+            <td>Text color in the caption bar.</td>
+          </tr>
+          <tr>
+            <td><code>--lb-chrome-font-size</code></td>
+            <td><code>15px</code></td>
+            <td>Font size in the caption bar.</td>
+          </tr>
+          <tr>
+            <td><code>--lb-chrome-padding</code></td>
+            <td><code>16px</code></td>
+            <td>Padding around the caption bar and nav arrows.</td>
+          </tr>
+          <tr>
+            <td><code>--lb-chrome-border-radius</code></td>
+            <td><code>48px</code></td>
+            <td>Border radius of the caption bar.</td>
+          </tr>
+          <tr>
+            <td><code>--lb-z-index</code></td>
+            <td><code>999999</code></td>
+            <td>Z-index of the lightbox overlay.</td>
+          </tr>
+        </tbody>
+      </table>
     </section>
 
     </div><!-- .content -->
