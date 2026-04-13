@@ -2749,10 +2749,19 @@ export class Lightbox {
       this.isTextLink,
     );
 
-    const atThumbnail = (s: AnimState) =>
-      Math.abs(s.scale - flipScale) < 0.05 &&
-      Math.abs(s.translateX - flipX) < 20 &&
-      Math.abs(s.translateY - flipY) < 20;
+    const triggerEl = this.state.triggerEl;
+    let bounceFired = false;
+    const atThumbnail = (s: AnimState) => {
+      const atTarget =
+        Math.abs(s.scale - flipScale) < 0.05 &&
+        Math.abs(s.translateX - flipX) < 20 &&
+        Math.abs(s.translateY - flipY) < 20;
+      if (atTarget && !bounceFired && triggerEl) {
+        bounceFired = true;
+        this.bounceTrigger(triggerEl);
+      }
+      return atTarget;
+    };
 
     this.animateSpring(
       { translateX: panX, translateY: panY, scale, opacity, crop: 0, borderRadius: currentBR },
