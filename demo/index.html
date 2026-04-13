@@ -1150,6 +1150,20 @@ const lb = Lightbox.init();</code></pre>
 
     let lb = Lightbox.init();
 
+    // ——— Preload high-res images ———
+    // Featured first, then the rest, one at a time to avoid bandwidth contention.
+    const featured = document.querySelectorAll('[data-lightbox="featured"]');
+    const rest = document.querySelectorAll('[data-lightbox]:not([data-lightbox="featured"])');
+    const queue = [...featured, ...rest].map(el => el.closest('a')?.href).filter(Boolean);
+
+    (function preloadNext() {
+      const src = queue.shift();
+      if (!src) return;
+      const img = new Image();
+      img.onload = img.onerror = preloadNext;
+      img.src = src;
+    })();
+
     // ——— Programmatic open recipe ———
     document.getElementById('programmatic-open-btn').addEventListener('click', () => {
       lb.open('https://images.unsplash.com/photo-1542224566-6e85f2e6772f?w=2400&q=80');
