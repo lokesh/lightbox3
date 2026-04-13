@@ -1009,7 +1009,18 @@ export class Lightbox {
       );
     }
 
-    const closeWhenInvisible = (s: AnimState) => s.opacity < 0.01;
+    const triggerEl = this.state.triggerEl;
+    let bounceFired = false;
+    const closeWhenInvisible = (s: AnimState) => {
+      if (s.opacity < 0.01) {
+        if (!bounceFired && triggerEl) {
+          bounceFired = true;
+          this.bounceTrigger(triggerEl);
+        }
+        return true;
+      }
+      return false;
+    };
 
     const currentBR = this.getTargetBorderRadius();
 
@@ -1070,10 +1081,6 @@ export class Lightbox {
     if (this.previouslyFocusedEl) {
       this.previouslyFocusedEl.focus();
       this.previouslyFocusedEl = null;
-    }
-
-    if (this.state.triggerEl) {
-      this.bounceTrigger(this.state.triggerEl);
     }
 
     this.emit('closed');
@@ -2242,10 +2249,19 @@ export class Lightbox {
     // Don't use opacity alone: it may already be near 0 from the drag.
     // Tolerances are wide enough to survive spring overshoot from fast flicks
     // (at thumbnail scale, 20px of position error is a few pixels on screen).
-    const atThumbnail = (s: AnimState) =>
-      Math.abs(s.scale - flipScale) < 0.05 &&
-      Math.abs(s.translateX - flipX) < 20 &&
-      Math.abs(s.translateY - flipY) < 20;
+    const triggerEl = this.state.triggerEl;
+    let bounceFired = false;
+    const atThumbnail = (s: AnimState) => {
+      const atTarget =
+        Math.abs(s.scale - flipScale) < 0.05 &&
+        Math.abs(s.translateX - flipX) < 20 &&
+        Math.abs(s.translateY - flipY) < 20;
+      if (atTarget && !bounceFired && triggerEl) {
+        bounceFired = true;
+        this.bounceTrigger(triggerEl);
+      }
+      return atTarget;
+    };
 
     // Parabolic arc: the axis with more velocity gets a softer spring,
     // so momentum carries it further while the cross-axis converges first.
@@ -3578,9 +3594,11 @@ export class Lightbox {
     return { flipScale: Math.min(scaleX, scaleY), hasCrop: false };
   }
 
-  private setThumbVisibility(_visible: boolean): void {
-    // Thumbnails stay visible at all times — the lightbox image
-    // animates above them, giving a "lift off / land back" effect.
+  private setThumbVisibility(visible: boolean): void {
+    if (window.innerWidth <= 600) return; // Mobile: thumbnails stay visible
+    const el = this.state.triggerEl;
+    if (!el) return;
+    el.style.visibility = visible ? '' : 'hidden';
   }
 
   private computeTargetRect(naturalWidth: number, naturalHeight: number): DOMRect {
