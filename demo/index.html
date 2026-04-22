@@ -991,11 +991,11 @@ lb.open('https://example.com/photo.jpg');</code></pre>
 
       <pre class="code-block" style="margin-top: 12px;"><code class="language-javascript">const lb = Lightbox.init();
 
-lb.on('open', (e) =&gt; console.log('open', e.detail));
-lb.on('closed', (e) =&gt; console.log('closed', e.detail));
-lb.on('navigate', (e) =&gt; console.log('navigate', e.detail));
-lb.on('zoomIn', (e) =&gt; console.log('zoomIn', e.detail));
-lb.on('zoomOut', (e) =&gt; console.log('zoomOut', e.detail));</code></pre>
+lb.on('open', (e) =&gt; console.log('open', e));
+lb.on('closed', (e) =&gt; console.log('closed', e));
+lb.on('navigate', (e) =&gt; console.log('navigate', e));
+lb.on('zoomIn', (e) =&gt; console.log('zoomIn', e));
+lb.on('zoomOut', (e) =&gt; console.log('zoomOut', e));</code></pre>
     </section>
 
     <!-- ——— Getting started ——— -->
@@ -1286,12 +1286,12 @@ const lb = Lightbox.init();</code></pre>
 
     function setupEvents() {
       eventNames.forEach(name => {
-        lb.on(name, () => {
+        lb.on(name, (e) => {
           const placeholder = eventLog.querySelector('.event-log-placeholder');
           if (placeholder) placeholder.remove();
           const entry = document.createElement('div');
           const time = new Date().toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-          entry.innerHTML = '<span class="event-time">' + time + '</span> <span class="event-name">' + name + '</span>';
+          entry.innerHTML = '<span class="event-time">' + time + '</span> <span class="event-name">' + name +' '+JSON.stringify(e)+ '</span>';
           eventLog.appendChild(entry);
           eventLog.scrollTop = eventLog.scrollHeight;
         });
