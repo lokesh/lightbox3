@@ -443,6 +443,7 @@ export class Lightbox {
   private preloadImage(src: string): void {
     if (this.preloadCache.has(src)) return;
     const img = new Image();
+    img.decoding = 'async';
     img.src = src;
     this.preloadCache.set(src, img);
   }
@@ -486,6 +487,7 @@ export class Lightbox {
     }
     this.preloadingActive = true;
     const img = new Image();
+    img.decoding = 'async';
     img.onload = img.onerror = () => {
       this.preloadingActive = false;
       this.processPreloadQueue();
@@ -3362,6 +3364,9 @@ export class Lightbox {
 
     const img = document.createElement('img');
     img.className = 'lightbox3-image';
+    // Decode off the main thread so a large image swapping in doesn't block the
+    // frame and stutter the open/navigate spring animation.
+    img.decoding = 'async';
     if (src) img.src = src;
     img.alt = alt;
     img.draggable = false;
@@ -3684,6 +3689,7 @@ export class Lightbox {
       img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
       img.onerror = () => resolve({ width: 800, height: 600 });
       if (!cached) {
+        img.decoding = 'async';
         img.src = src;
         this.preloadCache.set(src, img);
       }
