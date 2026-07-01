@@ -834,6 +834,14 @@ export class Lightbox {
     this.zoom.naturalWidth = natW;
     this.zoom.naturalHeight = natH;
 
+    // Preload neighbors and populate adjacent gallery slides so next/prev works
+    // immediately. Without this, the first navigation from a text-link trigger
+    // recycles a non-existent adjacent slot and lands on an empty image.
+    if (this.gallery.length > 1) {
+      this.schedulePreloads();
+    }
+    this.populateAdjacentSlides();
+
     // Build a FLIP origin rect centered on the text link but with the image's
     // aspect ratio, so the morph scales uniformly instead of stretching.
     const flipRect = this.textLinkFlipRect(thumbRect, natW, natH);
