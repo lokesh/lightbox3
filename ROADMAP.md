@@ -1,37 +1,80 @@
+# Lightbox3 Roadmap
 
-### 2. Smarter preloading
+Direction: keep the two things that make Lightbox3 distinct — **dead-simple drop-in setup** and **best-in-class mobile physics** — and fill the gaps around them before chasing scope. Video / non-image content is deliberately parked (see [Parked](#parked)); the near-term focus is small correctness gaps and open GitHub issues.
 
-The current hover preload (80ms delay, mouse-only) is a good start but leaves gaps, especially on mobile where there is no hover.
+---
 
-- **Touch preload on `pointerdown`**: Start fetching on touch start — the ~100-300ms before the click event fires is free loading time
-- **`img.decode()` in the preload pipeline**: Decode full-res images off the main thread before displaying to prevent decode jank during transitions
-- **Gallery adjacency preload**: Once the lightbox is open, preload next/prev images. Prioritize the direction of the user's last swipe
-- **`srcset` support**: Copy the thumbnail's `srcset` to the lightbox image with `sizes="100vw"` so the browser picks the right resolution for the viewport and DPR
-- **Cache-aware checks**: Skip preloading for images already in the browser cache (`img.complete && img.naturalWidth > 0`)
+## Shipped
 
-### 3. Dimension hints via data attributes
+Baseline single-image and gallery experiences are done and won't be re-listed as work:
 
-When the full-res image hasn't loaded yet, the opening animation can't calculate the correct target rect. Allow users to provide dimensions upfront.
+- Open/close FLIP morph, zoom, pan with momentum, snap-back
+- Gallery support with swipe navigation, strip slide, rubber-band edges
+- Swipe-to-dismiss (vertical drag, velocity commit/snap-back)
+- Scroll-to-dismiss + wheel navigation (Medium-style)
+- Captions (`data-caption`, `data-title`, `data-alt`)
+- Loading indicator (delayed spinner)
+- Gallery adjacency preload (immediate neighbors + travel direction)
+- Cache-aware preload checks (`img.complete && naturalWidth > 0`)
+- Accessibility foundations: focus trap, `aria-modal`, `aria-label`s, restore-focus-on-close, `prefers-reduced-motion` honored throughout
+- Pinch-to-zoom, hover preload, configurable padding/radius via CSS custom properties
 
-```html
-<a href="photo.jpg" data-lightbox data-width="4000" data-height="3000">
-```
+---
 
-- Use provided dimensions to compute the FLIP target rect immediately
-- Fall back to thumbnail `naturalWidth`/`naturalHeight` (current behavior)
-- Spring-animate rect changes if the actual image has different dimensions than the hint
+## Near-term: gaps & GitHub issues
 
-### 8. Loading indicator
+Small, high-return work. Do these before opening any large new surface.
 
-Show a subtle spinner or progress indicator when the full-res image is taking too long to load.
+### N1. ctrl / shift / meta-click passthrough — [issue #5]
 
-- Delayed appearance (e.g. 1.5-2s) — don't show for fast loads
-- Minimal, non-intrusive design (thin progress ring or bar)
-- Disappears immediately when image is ready
+Modifier-clicks should fall through to the browser (open in new tab/window) instead of being hijacked into the lightbox. Well-scoped, contributor-blessed, ~30-min fix.
 
-### 9. Responsive full-res source
+- On the thumbnail click handler, bail early if `e.ctrlKey || e.metaKey || e.shiftKey` (or `e.button !== 0`)
+- Let the native anchor behavior proceed
 
-Let users specify a separate full-resolution image for the lightbox, independent of the thumbnail.
+### N2. Option parsing / esm.sh init — [issue #10]
+
+User reports options (`padding`, `debug`) ignored when importing via esm.sh. Verify the option-parsing path and document the correct init pattern.
+
+- Reproduce with an esm.sh import; confirm whether it's a real parsing bug or a usage/docs gap
+- Fix parsing if broken; either way document the module-import + options pattern in the README
+- Related: PR #6 (demo option logging) touches the same surface — review and merge/close
+
+### N3. Touch preload on `pointerdown`
+
+Hover preload is mouse-only; mobile gets nothing. Start fetching on `pointerdown` — the ~100–300ms before `click` fires is free loading time.
+
+- Fire the existing preload path from `pointerdown` / touch start on the thumbnail
+- Reuse `preloadCache`; no double-fetch if already cached
+
+### N4. `img.decode()` in the preload pipeline
+
+Decode full-res images off the main thread before display to prevent decode jank during the open/navigate transitions.
+
+- Await `img.decode()` after load, before the morph swaps in the full-res source
+- Fall back gracefully where `decode()` is unsupported or rejects
+
+### N5. Project hygiene
+
+Not features, but they gate everything else and signal a maintained project.
+
+- **CI**: add `.github/workflows` running lint + build (test/e2e scripts already exist). Unblocks safe Dependabot merges
+- **Dev-dep audit**: `npm audit fix` + merge Dependabot PRs (#7/#12/#13/#14). Dev-only, not user-facing, but clears the noise
+- **GitHub Releases**: cut releases with notes (npm & tags are already in sync at v1.1.0)
+
+---
+
+## Next: responsive images & dimension hints
+
+Perf and correctness wins that extend the physics foundation. Larger than near-term, smaller than a new content type.
+
+### 1. `srcset` support
+
+Copy the thumbnail's `srcset` to the lightbox image with `sizes="100vw"` so the browser picks the right resolution for the viewport and DPR.
+
+### 2. Responsive full-res source
+
+Let users specify a separate full-resolution source for the lightbox, independent of the thumbnail.
 
 ```html
 <img src="thumb-400.jpg"
@@ -42,168 +85,99 @@ Let users specify a separate full-resolution image for the lightbox, independent
 
 - `data-lightbox-src`: explicit full-res URL (already works via `href` on links)
 - `data-lightbox-srcset`: responsive sources for the lightbox, with browser DPR selection
-- Without these, use `href` (for links) or `src` (for images) as today
+- Without these, use `href` (links) or `src` (images) as today
 
-### 10. Deep linking / URL hash
+### 3. Dimension hints via data attributes
 
-Allow direct linking to an open lightbox state.
+When the full-res image hasn't loaded yet, the opening animation can't calculate the correct target rect. Let users provide dimensions upfront.
 
-- Update URL hash when lightbox opens (e.g. `#lightbox=gallery-1&slide=3`)
-- On page load, if hash matches, auto-open the lightbox to that slide
+```html
+<a href="photo.jpg" data-lightbox data-width="4000" data-height="3000">
+```
+
+- Use provided dimensions to compute the FLIP target rect immediately
+- Fall back to thumbnail `naturalWidth`/`naturalHeight` (current behavior)
+- Spring-animate rect changes if the actual image differs from the hint
+
+### 4. Placeholder / blur-up support
+
+Show a blurred low-res placeholder (ThumbHash/BlurHash or a tiny inline image) while the full-res loads, fading through as it arrives.
+
+### 5. Deep linking / URL hash
+
+Direct-link to an open lightbox state — important for sharing and SEO.
+
+- Update URL hash when the lightbox opens (e.g. `#lightbox=gallery-1&slide=3`)
+- On page load, auto-open to the matching slide
 - Browser back button closes the lightbox (push state on open)
-- Important for sharing and SEO
 
 ---
 
-## Unconventional / standout ideas
+## Standout / delight ideas
 
-These are differentiators that would make Lightbox3 memorable and distinct from alternatives. Not all should be built — pick the ones that align with the library's identity.
+Differentiators that make Lightbox3 memorable. Not all should be built — pick the ones that fit the library's identity. (Scroll-to-dismiss from the original list is already shipped.)
 
-### 1. Gyroscope tilt-to-pan
+### Spring-physics thumbnail strip
 
-When an image is zoomed in, use the device's gyroscope to pan by tilting the phone. Feels magical — like looking through a window.
+A horizontally scrollable thumbnail bar with spring-physics momentum — the same feel as the main viewer. The most "on-brand" delight item; natural follow-on to the gallery.
 
-- Map `DeviceOrientationEvent` beta/gamma deltas to pan velocity
-- Feed into the existing spring engine (same system as momentum panning)
-- iOS 13+ requires `DeviceOrientationEvent.requestPermission()` (user gesture required)
-- Must be opt-in — enable via `data-lightbox-gyro` or a config option
-- Mouse-position fallback on desktop (subtle parallax shift)
-- ~50-80 lines of implementation
-- Concern: battery drain from continuous sensor polling; offer a toggle affordance
+- Flick-to-scroll with momentum and snap-to-item
+- Same `PAN_SPRING` / `SNAP_SPRING` presets, rubber-band overscroll
+- Active thumbnail scale/highlight animation
+- Could ship as a standalone carousel component
 
-### 2. Auto-zoom for wide images on portrait screens
+### Focus-point aware animations
 
-When a landscape image opens on a phone held in portrait, it appears tiny. Instead of showing it letterboxed, automatically zoom in to fill the viewport width and let the user pan vertically.
-
-- Detect when image aspect ratio >> viewport aspect ratio (e.g. panoramas)
-- On open, zoom to fill viewport width instead of fitting
-- Start panned to the left edge (or to the detected focus point)
-- User can zoom out to see the full image or pan horizontally
-- Threshold: maybe when image would be < 40% of viewport height if fit normally
-- This is a judgement call — could be a per-image opt-in via `data-lightbox-fill`
-
-### 3. Scroll-to-dismiss (Medium-style)
-
-Instead of only closing on backdrop click or ESC, close the lightbox when the user scrolls past a threshold. This treats the lightbox as a content zoom rather than a modal — you're never "trapped."
-
-- Track scroll delta while lightbox is open
-- At threshold (e.g. 40px scroll), trigger close animation
-- Pairs naturally with swipe-to-dismiss (vertical drag = immediate, scroll = ambient)
-- Works on both touch and mouse wheel
-- Great for inline/editorial content where the lightbox shouldn't interrupt reading flow
-- Could be default for non-gallery single-image lightboxes
-
-### 4. Focus-point aware animations
-
-Instead of always expanding from center, use a declared focus point as the `transform-origin` for the opening morph. The animation "grows" from the subject.
+Expand from a declared focus point as the `transform-origin` for the opening morph, so the animation grows from the subject.
 
 ```html
 <img data-lightbox data-focus-x="0.7" data-focus-y="0.3">
 ```
 
-- Normalized coordinates (0-1), same format used by Cloudinary/Imgix/WordPress
-- Used as transform-origin during FLIP morph
-- Also used for smart `object-fit: cover` cropping on the thumbnail
-- Also used for auto-zoom target (idea #2) — zoom to the subject, not the center
-- ~15-20 lines of implementation, high visual impact
-- Can be generated by AI saliency detection at build time
+- Normalized 0–1 coords (Cloudinary/Imgix/WordPress format)
+- Reused as the auto-zoom target and for `object-fit: cover` cropping
+- ~15–20 lines, high visual impact
 
-### 5. Haptic snap points
+### Velocity-matched close animation
 
-Trigger subtle haptic feedback at meaningful interaction boundaries.
+When flicked to dismiss, match the close to the fling direction/speed rather than always returning to the thumbnail. Release velocity already feeds the spring; this extends the existing dismiss gesture.
 
-- Vibrate on: zoom hitting 1x (fit), zoom hitting max, pan hitting edge bounds (rubber band start), slide snap in gallery
-- Use the [web-haptics](https://github.com/lochie/web-haptics) library or raw `navigator.vibrate()`
-- **Limitation**: iOS Safari doesn't support the Vibration API at all — this is Android-only for now
-- Offer as a callback hook: `onSnapPoint(type: 'zoom' | 'pan-edge' | 'slide-snap')` so users can wire in their own haptics or sound effects
-- The proposed Web Haptics API (in W3C incubation) would make this much more viable if it ships with iOS support
+- Fast downward fling → flies off the bottom; upward → off the top
+- Slow drag past threshold → gentle return-to-thumbnail morph
 
-### 6. Spring-physics thumbnail gallery
+### Auto-zoom for wide images on portrait screens
 
-Instead of a static thumbnail strip, build a horizontally scrollable thumbnail bar with spring-physics momentum — the same feel as the main lightbox interactions.
+When a landscape/panorama opens on a phone in portrait, fill viewport width and let the user pan, instead of a tiny letterboxed image. Per-image opt-in via `data-lightbox-fill`; pairs with focus-point targeting.
 
-- Flick to scroll through thumbnails with momentum and snap-to-item
-- Same spring presets (`PAN_SPRING`, `SNAP_SPRING`) as the main viewer
-- Rubber-band overscroll at edges
-- Active thumbnail has a subtle scale/highlight animation
-- This makes the gallery navigation feel like part of the same physics system, not a bolted-on UI element
-- Could be used independently of the lightbox (standalone carousel component)
+### Ambient background color
 
-### 7. Inline expansion mode
+Sample the image's dominant color (1×1 canvas downsample) and tint the backdrop with low opacity, spring-animating the transition on navigation. ~20 lines, zero deps.
 
-Instead of overlaying the viewport, expand the clicked image in-place within the document flow, pushing surrounding content down. Like Google Image Search's inline detail panel.
+### Gyroscope tilt-to-pan
 
-- FLIP morph from thumbnail to expanded size within the same container
-- Surrounding content animates down with springs
-- No backdrop, no overlay, no modal
-- Better for editorial/blog content where full-screen takeover feels heavy
-- Activate via `data-lightbox-inline` or a config option
-- Same spring engine and zoom/pan mechanics, different layout target
+While zoomed, pan by tilting the phone — `DeviceOrientationEvent` deltas fed into the pan spring. Opt-in (`data-lightbox-gyro`), iOS permission-gated, desktop mouse-parallax fallback. ~50–80 lines; watch battery drain.
 
-### 8. Velocity-matched close animation
+### Haptic snap points
 
-When the user flicks the image to dismiss (swipe-to-dismiss), match the close animation to the fling direction and speed rather than always animating back to the thumbnail.
+Subtle haptics at interaction boundaries (zoom hits 1×/max, pan edge, slide snap) via `navigator.vibrate()`. iOS Safari has no Vibration API, so Android-only for now — expose an `onSnapPoint(type)` callback so users can wire their own.
 
-- If flung downward fast: image flies off the bottom, backdrop fades
-- If flung upward: flies off the top
-- If slow drag past threshold: gentle return-to-thumbnail morph
-- The release velocity feeds directly into the spring's initial velocity (the architecture already supports this)
-- Compare: iOS Photos does this; most web lightboxes always animate back to the thumbnail regardless of gesture direction
-- Makes dismissal feel responsive to intent rather than mechanical
+### Inline expansion mode
 
-### 9. View Transitions API integration (future)
+Expand the clicked image in-place within document flow (Google Images-style) instead of a full-screen overlay. Same spring/zoom mechanics, different layout target; better for editorial content. Opt-in via `data-lightbox-inline`.
 
-The browser's View Transitions API can eventually replace the manual FLIP measurement phase while keeping springs for animation curves.
+### View Transitions API integration (future)
 
-- Same-document view transitions are now Baseline (Chrome 111+, Firefox 144+, Safari 18+)
-- `match-element` auto-naming (Chrome 137) eliminates manual naming
-- Scoped view transitions (Chrome 140) enable subtree transitions
-- **Not ready yet**: The API uses CSS transitions/WAAPI internally, conflicting with the spring-only architecture. Interruptibility (grabbing a transition mid-flight) is unclear
-- **Strategy**: Monitor for interruptibility support. When available, use View Transitions for the snapshot/measurement phase, springs for the curve. This would simplify the FLIP code significantly
-
-### 10. Ambient background color
-
-Extract the dominant color (or a blurred version) of the current image and use it to tint the backdrop, creating a glow effect behind the image.
-
-- Use a tiny `<canvas>` to sample the image's average color
-- Apply as the backdrop `background-color` with low opacity
-- Transition the color when navigating between gallery slides
-- Subtle but premium — differentiates from the typical black/dark backdrop
-- Apple Music and Spotify use this pattern for album art
-- Implementation: downsample image to 1x1 pixel on canvas, read pixel, apply with spring-animated opacity
-- ~20 lines, zero dependencies
+Eventually use View Transitions for the snapshot/measurement phase while keeping springs for the curve. **Blocked**: the API drives animation via CSS transitions/WAAPI internally, conflicting with the spring-only architecture, and mid-flight interruptibility is unproven. Monitor for interruptibility support before adopting.
 
 ---
 
-## Proposed phases
+## Parked
 
-### Phase 1 — Solid single-image experience
-- Swipe-to-dismiss (#E4)
-- Smarter preloading (#E2) — touch preload, `img.decode()`, cache checks
-- Dimension hints (#E3)
-- Placeholder/blur-up support (#E5)
-- Loading indicator (#E8)
-- Focus-point aware animations (#U4)
-- Accessibility foundations (#E6)
+Deliberately deferred — revisit after the near-term/next work lands.
 
-### Phase 2 — Gallery
-- Gallery support with swipe navigation (#E1)
-- Responsive full-res source / srcset (#E9)
-- Captions (#E7)
-- Spring-physics thumbnail strip (#U6)
-- Ambient background color (#U10)
+### Non-image content: video / HTML / iframe — [issue #8]
 
-### Phase 3 — Delight
-- Deep linking / URL hash (#E10)
-- Scroll-to-dismiss (#U3)
-- Velocity-matched close animation (#U8)
-- Auto-zoom for wide images (#U2)
-- Gyroscope tilt-to-pan (#U1)
-- Haptic snap points (#U5)
-
-### Phase 4 — Alternate modes
-- Inline expansion mode (#U7)
-- View Transitions API integration (#U9, when browser support matures)
+The top external request and competitive table stakes (GLightbox, Fancybox, lightGallery all ship it). Deferred for now by choice, not oversight. When picked up, scope minimally: self-hosted `<video>` + `iframe` first, punt on provider embeds (YouTube/Vimeo). Requires a content-type abstraction over the strip, plus separate gesture/zoom rules for video.
 
 ---
 
