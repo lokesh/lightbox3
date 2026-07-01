@@ -62,11 +62,7 @@ When the full-res image hasn't loaded yet, the opening animation can't calculate
 - Fall back to thumbnail `naturalWidth`/`naturalHeight` (current behavior)
 - Spring-animate rect changes if the actual image differs from the hint
 
-### 4. Placeholder / blur-up support
-
-Show a blurred low-res placeholder (ThumbHash/BlurHash or a tiny inline image) while the full-res loads, fading through as it arrives.
-
-### 5. Deep linking / URL hash
+### 4. Deep linking / URL hash
 
 Direct-link to an open lightbox state — important for sharing and SEO.
 
@@ -127,10 +123,6 @@ Subtle haptics at interaction boundaries (zoom hits 1×/max, pan edge, slide sna
 ### Inline expansion mode
 
 Expand the clicked image in-place within document flow (Google Images-style) instead of a full-screen overlay. Same spring/zoom mechanics, different layout target; better for editorial content. Opt-in via `data-lightbox-inline`.
-
-### View Transitions API integration (future)
-
-Eventually use View Transitions for the snapshot/measurement phase while keeping springs for the curve. **Blocked**: the API drives animation via CSS transitions/WAAPI internally, conflicting with the spring-only architecture, and mid-flight interruptibility is unproven. Monitor for interruptibility support before adopting.
 
 ---
 
