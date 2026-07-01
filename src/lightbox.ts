@@ -291,9 +291,21 @@ export class Lightbox {
   }
 
   static init(opts?: LightboxOptions): Lightbox {
-    if (Lightbox.instance) return Lightbox.instance;
+    if (Lightbox.instance) {
+      // A singleton already exists (e.g. from auto-init on DOMContentLoaded).
+      // Apply any options passed here so an explicit init() call is not a no-op.
+      if (opts) Lightbox.instance.configure(opts);
+      return Lightbox.instance;
+    }
     Lightbox.instance = new Lightbox(opts);
     return Lightbox.instance;
+  }
+
+  /** Merge new options into the existing instance. Options are read lazily at
+   *  open time, so this reconfigures the lightbox for subsequent opens. */
+  configure(opts: LightboxOptions): this {
+    this.opts = { ...this.opts, ...opts };
+    return this;
   }
 
   on(event: LightboxEventType, callback: LightboxEventCallback): this {
