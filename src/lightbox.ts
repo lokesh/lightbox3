@@ -518,6 +518,9 @@ export class Lightbox {
   private handleClick(e: MouseEvent): void {
     const trigger = (e.target as HTMLElement).closest(this.opts.selector) as HTMLElement | null;
     if (!trigger) return;
+    // Let the browser handle modifier and non-primary clicks (open in new
+    // tab/window, etc.) rather than hijacking them to open the lightbox.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
     const src = this.getSrcFromTrigger(trigger);
     if (!src) return;
