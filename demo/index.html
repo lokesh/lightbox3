@@ -886,12 +886,12 @@
       <h2>Mixed aspect ratios</h2></div>
       <p>Portrait, landscape, square. Thumbnails can be cropped to any aspect ratio and will seamlessly transition to the full-size image.</p>
       <div class="mixed-gallery">
-        <a href="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=2400&q=80" data-lightbox="mixed" data-caption="Sunlit mountain valley" style="width: 210px;"><img src="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=420&h=280&fit=crop&q=80" alt="Sunlit mountain valley"></a>
-        <a href="https://images.unsplash.com/photo-1414609245224-afa02bfb3fda?w=2400&q=80" data-lightbox="mixed" data-caption="Ocean cliffs at sunset" style="width: 94px;"><img src="https://images.unsplash.com/photo-1414609245224-afa02bfb3fda?w=188&h=280&fit=crop&q=80" alt="Ocean cliffs at sunset"></a>
-        <a href="https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=2400&q=80" data-lightbox="mixed" data-caption="Lake with autumn trees" style="width: 210px;"><img src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=420&h=280&fit=crop&q=80" alt="Lake with autumn trees"></a>
-        <a href="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=2400&q=80" data-lightbox="mixed" data-caption="Snow-capped peaks at night" style="width: 140px;"><img src="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=280&h=280&fit=crop&q=80" alt="Snow-capped peaks at night"></a>
-        <a href="https://images.unsplash.com/photo-1505567745926-ba89000d255a?w=2400&q=80" data-lightbox="mixed" data-caption="Volcanic landscape" style="width: 94px;"><img src="https://images.unsplash.com/photo-1505567745926-ba89000d255a?w=188&h=280&fit=crop&q=80" alt="Volcanic landscape"></a>
-        <a href="https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=2400&q=80" data-lightbox="mixed" data-caption="Sunset over the sea" style="width: 210px;"><img src="https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=420&h=280&fit=crop&q=80" alt="Sunset over the sea"></a>
+        <a href="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=2400&q=80" data-lightbox="mixed" data-caption="Sunlit mountain valley" data-width="2400" data-height="1594" style="width: 210px;"><img src="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=420&h=280&fit=crop&q=80" alt="Sunlit mountain valley"></a>
+        <a href="https://images.unsplash.com/photo-1414609245224-afa02bfb3fda?w=2400&q=80" data-lightbox="mixed" data-caption="Ocean cliffs at sunset" data-width="2400" data-height="3585" style="width: 94px;"><img src="https://images.unsplash.com/photo-1414609245224-afa02bfb3fda?w=188&h=280&fit=crop&q=80" alt="Ocean cliffs at sunset"></a>
+        <a href="https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=2400&q=80" data-lightbox="mixed" data-caption="Lake with autumn trees" data-width="2400" data-height="1600" style="width: 210px;"><img src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=420&h=280&fit=crop&q=80" alt="Lake with autumn trees"></a>
+        <a href="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=2400&q=80" data-lightbox="mixed" data-caption="Snow-capped peaks at night" data-width="2400" data-height="1601" style="width: 140px;"><img src="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=280&h=280&fit=crop&q=80" alt="Snow-capped peaks at night"></a>
+        <a href="https://images.unsplash.com/photo-1505567745926-ba89000d255a?w=2400&q=80" data-lightbox="mixed" data-caption="Volcanic landscape" data-width="2400" data-height="1600" style="width: 94px;"><img src="https://images.unsplash.com/photo-1505567745926-ba89000d255a?w=188&h=280&fit=crop&q=80" alt="Volcanic landscape"></a>
+        <a href="https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=2400&q=80" data-lightbox="mixed" data-caption="Sunset over the sea" data-width="2400" data-height="1600" style="width: 210px;"><img src="https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=420&h=280&fit=crop&q=80" alt="Sunset over the sea"></a>
       </div>
     </section>
 
@@ -1089,6 +1089,10 @@ const lb = Lightbox.init();</code></pre>
           <tr>
             <td><code>data-alt="<span class="subtle">text</span>"</code></td>
             <td>Alt text for the full-size image. Falls back to the thumbnail's <code>alt</code> attribute if not set.</td>
+          </tr>
+          <tr>
+            <td><code>data-width="<span class="subtle">px</span>"</code> <code>data-height="<span class="subtle">px</span>"</code></td>
+            <td>Full-res pixel dimensions. When set, the open animation targets the correct size immediately instead of guessing from the thumbnail — no reflow when the image loads. Both are required; otherwise the thumbnail's aspect ratio is used.</td>
           </tr>
         </tbody>
       </table>

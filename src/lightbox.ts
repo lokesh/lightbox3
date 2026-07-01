@@ -651,10 +651,7 @@ export class Lightbox {
 
     this.createOverlay(thumbSrc || src);
     this.createChrome();
-    this.computeChromeDrift(
-      thumbRect.x + thumbRect.width / 2,
-      thumbRect.y + thumbRect.height / 2,
-    );
+    this.computeChromeDrift(thumbRect.x + thumbRect.width / 2, thumbRect.y + thumbRect.height / 2);
     document.addEventListener('keydown', this.handleKeydown);
     this.setThumbVisibility(false);
 
@@ -663,15 +660,30 @@ export class Lightbox {
 
     const cached = this.preloadCache.get(src);
     const fullResReady = cached?.complete && cached.naturalWidth > 0;
+    const hint = this.getDimensionHint(triggerEl!);
 
-    const natW = fullResReady ? cached!.naturalWidth : thumbNatW;
-    const natH = fullResReady ? cached!.naturalHeight : thumbNatH;
-    // When full-res dimensions are unknown, use thumbnail aspect ratio to fill
-    // the viewport. Without this, the "never upscale" cap in computeTargetRect
-    // keeps the image at the thumbnail's small pixel size.
-    const targetRect = fullResReady
-      ? this.computeTargetRect(natW, natH)
-      : this.computeTargetRectFromAspectRatio(natW, natH);
+    let natW: number;
+    let natH: number;
+    let targetRect: DOMRect;
+    if (fullResReady) {
+      natW = cached!.naturalWidth;
+      natH = cached!.naturalHeight;
+      targetRect = this.computeTargetRect(natW, natH);
+    } else if (hint) {
+      // Author-declared true dimensions — use the capped rect (respects the
+      // "never upscale" rule) so the morph lands exactly where the loaded image
+      // will, with no reflow when full-res arrives.
+      natW = hint.w;
+      natH = hint.h;
+      targetRect = this.computeTargetRect(natW, natH);
+    } else {
+      // Full-res dimensions unknown — use thumbnail aspect ratio to fill the
+      // viewport. Without this, the "never upscale" cap in computeTargetRect
+      // keeps the image at the thumbnail's small pixel size.
+      natW = thumbNatW;
+      natH = thumbNatH;
+      targetRect = this.computeTargetRectFromAspectRatio(natW, natH);
+    }
 
     // Place image at final size/position, then FLIP from thumbnail
     this.positionImage(targetRect);
@@ -686,12 +698,7 @@ export class Lightbox {
     const flipY = thumbRect.y + thumbRect.height / 2 - (targetRect.y + targetRect.height / 2);
 
     // Compute FLIP scale and crop insets (handles CSS cover + server-side crop)
-    const { flipScale, hasCrop } = this.computeFlipCrop(
-      thumbRect,
-      targetRect,
-      triggerEl!,
-      false,
-    );
+    const { flipScale, hasCrop } = this.computeFlipCrop(thumbRect, targetRect, triggerEl!, false);
 
     // Start full-res load immediately so it continues regardless of animation interrupts
     if (thumbSrc && thumbSrc !== src) {
@@ -714,8 +721,22 @@ export class Lightbox {
     // so dismiss tracking isn't blocked, but the spring keeps bouncing visually.
     const openVisuallyDone = (s: AnimState) => s.opacity > 0.99;
     this.animateSpring(
-      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0, borderRadius: this.thumbBorderRadius },
-      { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0, borderRadius: this.getTargetBorderRadius() },
+      {
+        translateX: flipX,
+        translateY: flipY,
+        scale: flipScale,
+        opacity: 0,
+        crop: hasCrop ? 1 : 0,
+        borderRadius: this.thumbBorderRadius,
+      },
+      {
+        translateX: 0,
+        translateY: 0,
+        scale: 1,
+        opacity: 1,
+        crop: 0,
+        borderRadius: this.getTargetBorderRadius(),
+      },
       this.opts.springOpen,
       () => {
         this.state.isAnimating = false;
@@ -826,7 +847,14 @@ export class Lightbox {
     const targetBR = this.getTargetBorderRadius();
     const openVisuallyDone = (s: AnimState) => s.opacity > 0.99;
     this.animateSpring(
-      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: 0, borderRadius: 0 },
+      {
+        translateX: flipX,
+        translateY: flipY,
+        scale: flipScale,
+        opacity: 0,
+        crop: 0,
+        borderRadius: 0,
+      },
       { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0, borderRadius: targetBR },
       this.opts.springOpen,
       () => {
@@ -1076,7 +1104,14 @@ export class Lightbox {
 
     this.animateSpring(
       { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0, borderRadius: currentBR },
-      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0, borderRadius: this.thumbBorderRadius },
+      {
+        translateX: flipX,
+        translateY: flipY,
+        scale: flipScale,
+        opacity: 0,
+        crop: hasCrop ? 1 : 0,
+        borderRadius: this.thumbBorderRadius,
+      },
       this.opts.springClose,
       () => this.finishClose(),
       closeWhenInvisible,
@@ -1338,9 +1373,7 @@ export class Lightbox {
     // Also check if the slide's img element already has full-res loaded
     // (e.g. preload finished during strip animation and upgraded the adjacent slide)
     const imgHasFullRes =
-      this.imgEl.src === item.src &&
-      this.imgEl.complete &&
-      this.imgEl.naturalWidth > 0;
+      this.imgEl.src === item.src && this.imgEl.complete && this.imgEl.naturalWidth > 0;
 
     if (fullResReady || imgHasFullRes) {
       const natW = fullResReady ? cached!.naturalWidth : this.imgEl.naturalWidth;
@@ -1351,12 +1384,19 @@ export class Lightbox {
       this.imgEl.src = item.src;
       this.positionImage(this.zoom.fitRect);
     } else {
-      const thumbImg = item.triggerEl.querySelector('img') as HTMLImageElement | null;
-      const natW = thumbImg?.naturalWidth || 400;
-      const natH = thumbImg?.naturalHeight || 300;
-      this.zoom.naturalWidth = natW;
-      this.zoom.naturalHeight = natH;
-      this.zoom.fitRect = this.computeTargetRectFromAspectRatio(natW, natH);
+      const hint = this.getDimensionHint(item.triggerEl);
+      if (hint) {
+        this.zoom.naturalWidth = hint.w;
+        this.zoom.naturalHeight = hint.h;
+        this.zoom.fitRect = this.computeTargetRect(hint.w, hint.h);
+      } else {
+        const thumbImg = item.triggerEl.querySelector('img') as HTMLImageElement | null;
+        const natW = thumbImg?.naturalWidth || 400;
+        const natH = thumbImg?.naturalHeight || 300;
+        this.zoom.naturalWidth = natW;
+        this.zoom.naturalHeight = natH;
+        this.zoom.fitRect = this.computeTargetRectFromAspectRatio(natW, natH);
+      }
       this.positionImage(this.zoom.fitRect);
       this.swapToFullRes(item.src);
     }
@@ -1519,9 +1559,8 @@ export class Lightbox {
       // Mobile: thumbnail stays visible during close, so fade the image in
       // the final stretch to ease the handoff rather than snapping away.
       const CLOSE_IMG_FADE = 0.02;
-      img.style.opacity = state.opacity < CLOSE_IMG_FADE
-        ? String(state.opacity / CLOSE_IMG_FADE)
-        : '';
+      img.style.opacity =
+        state.opacity < CLOSE_IMG_FADE ? String(state.opacity / CLOSE_IMG_FADE) : '';
     } else {
       img.style.opacity = '';
     }
@@ -1545,9 +1584,7 @@ export class Lightbox {
 
     // Chrome follows backdrop opacity during open/close.
     // Accelerate fade-out on close so chrome disappears before the morph lands.
-    this.chromeBaseOpacity = this.state.isClosing
-      ? Math.pow(state.opacity, 2)
-      : state.opacity;
+    this.chromeBaseOpacity = this.state.isClosing ? Math.pow(state.opacity, 2) : state.opacity;
     // Drift progress: 1 = fully offset toward origin, 0 = settled in place
     this.chromeDriftProgress = 1 - state.opacity;
     this.updateChromeVisuals();
@@ -1586,8 +1623,7 @@ export class Lightbox {
 
       // Early completion: sub-pixel position + low velocity means visually done.
       // Without this, the spring long tail adds ~500ms of imperceptible creep.
-      const earlyDone =
-        Math.abs(result.position - toX) < 1 && Math.abs(result.velocity) < 5;
+      const earlyDone = Math.abs(result.position - toX) < 1 && Math.abs(result.velocity) < 5;
 
       if (result.settled || earlyDone) {
         this.stripOffset = toX;
@@ -2248,8 +2284,22 @@ export class Lightbox {
     // Off-screen thumbnails — fade out in place
     if (!thumbRect || !this.isInViewport(thumbRect)) {
       this.animateSpring(
-        { translateX: offsetX, translateY: offsetY, scale, opacity, crop: 0, borderRadius: currentBR },
-        { translateX: offsetX, translateY: offsetY, scale, opacity: 0, crop: 0, borderRadius: currentBR },
+        {
+          translateX: offsetX,
+          translateY: offsetY,
+          scale,
+          opacity,
+          crop: 0,
+          borderRadius: currentBR,
+        },
+        {
+          translateX: offsetX,
+          translateY: offsetY,
+          scale,
+          opacity: 0,
+          crop: 0,
+          borderRadius: currentBR,
+        },
         this.opts.springClose,
         () => this.finishClose(),
         (s) => s.opacity < 0.01,
@@ -2303,14 +2353,26 @@ export class Lightbox {
     let dismissConfigs: Partial<Record<keyof AnimState, SpringConfig>> | undefined;
     if (vRatio > 1.5 && Math.max(absVx, absVy) > 100) {
       const soft = { ...base, stiffness: base.stiffness * 0.55, damping: base.damping * 0.85 };
-      dismissConfigs = absVy > absVx
-        ? { translateY: soft }
-        : { translateX: soft };
+      dismissConfigs = absVy > absVx ? { translateY: soft } : { translateX: soft };
     }
 
     this.animateSpring(
-      { translateX: offsetX, translateY: offsetY, scale, opacity, crop: 0, borderRadius: currentBR },
-      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0, borderRadius: this.thumbBorderRadius },
+      {
+        translateX: offsetX,
+        translateY: offsetY,
+        scale,
+        opacity,
+        crop: 0,
+        borderRadius: currentBR,
+      },
+      {
+        translateX: flipX,
+        translateY: flipY,
+        scale: flipScale,
+        opacity: 0,
+        crop: hasCrop ? 1 : 0,
+        borderRadius: this.thumbBorderRadius,
+      },
       this.opts.springClose,
       () => this.finishClose(),
       atThumbnail,
@@ -2357,7 +2419,6 @@ export class Lightbox {
   }
 
   // ─── Wheel handling ────────────────────────────────────────
-
 
   private handleWheel(e: WheelEvent): void {
     e.preventDefault();
@@ -2781,7 +2842,14 @@ export class Lightbox {
 
     this.animateSpring(
       { translateX: panX, translateY: panY, scale, opacity, crop: 0, borderRadius: currentBR },
-      { translateX: flipX, translateY: flipY, scale: flipScale, opacity: 0, crop: hasCrop ? 1 : 0, borderRadius: this.thumbBorderRadius },
+      {
+        translateX: flipX,
+        translateY: flipY,
+        scale: flipScale,
+        opacity: 0,
+        crop: hasCrop ? 1 : 0,
+        borderRadius: this.thumbBorderRadius,
+      },
       this.opts.springClose,
       () => this.finishClose(),
       atThumbnail,
@@ -3116,7 +3184,11 @@ export class Lightbox {
     if (this.gallery.length > 0) {
       return this.gallery[this.currentIndex]?.caption || '';
     }
-    return this.state.triggerEl?.getAttribute('data-caption') || this.state.triggerEl?.getAttribute('data-title') || '';
+    return (
+      this.state.triggerEl?.getAttribute('data-caption') ||
+      this.state.triggerEl?.getAttribute('data-title') ||
+      ''
+    );
   }
 
   private getCurrentAlt(): string {
@@ -3145,8 +3217,7 @@ export class Lightbox {
       this.chromePrev.style.display = this.currentIndex > 0 ? '' : 'none';
     }
     if (this.chromeNext) {
-      this.chromeNext.style.display =
-        this.currentIndex < this.gallery.length - 1 ? '' : 'none';
+      this.chromeNext.style.display = this.currentIndex < this.gallery.length - 1 ? '' : 'none';
     }
   }
 
@@ -3430,10 +3501,7 @@ export class Lightbox {
           cached.removeEventListener('load', onLoad);
           if (this.state.isClosing || !this.state.isOpen) return;
           // Only upgrade if this img is still an adjacent slide (not yet current)
-          if (
-            (img === this.prevSlideImg || img === this.nextSlideImg) &&
-            cached.naturalWidth > 0
-          ) {
+          if ((img === this.prevSlideImg || img === this.nextSlideImg) && cached.naturalWidth > 0) {
             img.src = item.src;
             const fullRect = this.computeTargetRect(cached.naturalWidth, cached.naturalHeight);
             this.positionImageEl(img, fullRect);
@@ -3657,6 +3725,17 @@ export class Lightbox {
     el.style.visibility = visible ? '' : 'hidden';
   }
 
+  /** Read author-provided full-res dimensions from `data-width`/`data-height`.
+   *  Returns null unless both parse to positive numbers. Lets the opening morph
+   *  target the correct rect before the full-res image has loaded, so there's no
+   *  reflow when it arrives (swapToFullRes reconciles any small mismatch). */
+  private getDimensionHint(el: HTMLElement): { w: number; h: number } | null {
+    const w = parseFloat(el.getAttribute('data-width') || '');
+    const h = parseFloat(el.getAttribute('data-height') || '');
+    if (w > 0 && h > 0) return { w, h };
+    return null;
+  }
+
   private computeTargetRect(naturalWidth: number, naturalHeight: number): DOMRect {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
@@ -3794,8 +3873,7 @@ export class Lightbox {
     this.debugLogEntries.push(entry);
     // Keep last 100 entries
     if (this.debugLogEntries.length > 100) this.debugLogEntries.shift();
-    this.debugLogEl.textContent =
-      '── event log ──────────\n' + this.debugLogEntries.join('\n');
+    this.debugLogEl.textContent = '── event log ──────────\n' + this.debugLogEntries.join('\n');
     this.debugLogEl.scrollTop = this.debugLogEl.scrollHeight;
   }
 

@@ -27,7 +27,7 @@ Not features, but they gate everything else and signal a maintained project.
 
 ---
 
-## Next: responsive images & dimension hints
+## Next: responsive images
 
 Perf and correctness wins that extend the physics foundation. Larger than near-term, smaller than a new content type.
 
@@ -50,19 +50,7 @@ Let users specify a separate full-resolution source for the lightbox, independen
 - `data-lightbox-srcset`: responsive sources for the lightbox, with browser DPR selection
 - Without these, use `href` (links) or `src` (images) as today
 
-### 3. Dimension hints via data attributes
-
-When the full-res image hasn't loaded yet, the opening animation can't calculate the correct target rect. Let users provide dimensions upfront.
-
-```html
-<a href="photo.jpg" data-lightbox data-width="4000" data-height="3000">
-```
-
-- Use provided dimensions to compute the FLIP target rect immediately
-- Fall back to thumbnail `naturalWidth`/`naturalHeight` (current behavior)
-- Spring-animate rect changes if the actual image differs from the hint
-
-### 4. Deep linking / URL hash
+### 3. Deep linking / URL hash
 
 Direct-link to an open lightbox state — important for sharing and SEO.
 
