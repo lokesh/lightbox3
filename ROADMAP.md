@@ -85,18 +85,6 @@ A horizontally scrollable thumbnail bar with spring-physics momentum — the sam
 - Active thumbnail scale/highlight animation
 - Could ship as a standalone carousel component
 
-### Focus-point aware animations
-
-Expand from a declared focus point as the `transform-origin` for the opening morph, so the animation grows from the subject.
-
-```html
-<img data-lightbox data-focus-x="0.7" data-focus-y="0.3">
-```
-
-- Normalized 0–1 coords (Cloudinary/Imgix/WordPress format)
-- Reused as the auto-zoom target and for `object-fit: cover` cropping
-- ~15–20 lines, high visual impact
-
 ### Velocity-matched close animation
 
 When flicked to dismiss, match the close to the fling direction/speed rather than always returning to the thumbnail. Release velocity already feeds the spring; this extends the existing dismiss gesture.
