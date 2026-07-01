@@ -1,23 +1,8 @@
 # Lightbox3 Roadmap
 
+> **Convention:** This is a forward-looking roadmap. When an item ships, **remove it from this file entirely** — don't mark it done or keep a changelog here. Git history is the record of completed work; this file tracks only what's still ahead.
+
 Direction: keep the two things that make Lightbox3 distinct — **dead-simple drop-in setup** and **best-in-class mobile physics** — and fill the gaps around them before chasing scope. Video / non-image content is deliberately parked (see [Parked](#parked)); the near-term focus is small correctness gaps and open GitHub issues.
-
----
-
-## Shipped
-
-Baseline single-image and gallery experiences are done and won't be re-listed as work:
-
-- Open/close FLIP morph, zoom, pan with momentum, snap-back
-- Gallery support with swipe navigation, strip slide, rubber-band edges
-- Swipe-to-dismiss (vertical drag, velocity commit/snap-back)
-- Scroll-to-dismiss + wheel navigation (Medium-style)
-- Captions (`data-caption`, `data-title`, `data-alt`)
-- Loading indicator (delayed spinner)
-- Gallery adjacency preload (immediate neighbors + travel direction)
-- Cache-aware preload checks (`img.complete && naturalWidth > 0`)
-- Accessibility foundations: focus trap, `aria-modal`, `aria-label`s, restore-focus-on-close, `prefers-reduced-motion` honored throughout
-- Pinch-to-zoom, hover preload, configurable padding/radius via CSS custom properties
 
 ---
 
@@ -25,41 +10,19 @@ Baseline single-image and gallery experiences are done and won't be re-listed as
 
 Small, high-return work. Do these before opening any large new surface.
 
-### N1. ctrl / shift / meta-click passthrough — [issue #5]
+### N1. `img.decode()` in the preload pipeline (measure first)
 
-Modifier-clicks should fall through to the browser (open in new tab/window) instead of being hijacked into the lightbox. Well-scoped, contributor-blessed, ~30-min fix.
+`decoding="async"` is already set on the displayed and preloaded images — that captures most of the off-main-thread decode win at zero risk. Only pursue an explicit `img.decode()`-gated pipeline if profiling on a real mobile device still shows decode jank.
 
-- On the thumbnail click handler, bail early if `e.ctrlKey || e.metaKey || e.shiftKey` (or `e.button !== 0`)
-- Let the native anchor behavior proceed
-
-### N2. Option parsing / esm.sh init — [issue #10]
-
-User reports options (`padding`, `debug`) ignored when importing via esm.sh. Verify the option-parsing path and document the correct init pattern.
-
-- Reproduce with an esm.sh import; confirm whether it's a real parsing bug or a usage/docs gap
-- Fix parsing if broken; either way document the module-import + options pattern in the README
-- Related: PR #6 (demo option logging) touches the same surface — review and merge/close
-
-### N3. Touch preload on `pointerdown`
-
-Hover preload is mouse-only; mobile gets nothing. Start fetching on `pointerdown` — the ~100–300ms before `click` fires is free loading time.
-
-- Fire the existing preload path from `pointerdown` / touch start on the thumbnail
-- Reuse `preloadCache`; no double-fetch if already cached
-
-### N4. `img.decode()` in the preload pipeline
-
-Decode full-res images off the main thread before display to prevent decode jank during the open/navigate transitions.
-
-- Await `img.decode()` after load, before the morph swaps in the full-res source
+- Profile navigation between large cached images on a real phone first
+- If jank persists: `await img.decode()` on the **visible element at its render size** (not the detached preload object — that can re-decode when displayed scaled), guarded against close/interrupt
 - Fall back gracefully where `decode()` is unsupported or rejects
 
-### N5. Project hygiene
+### N2. Project hygiene
 
 Not features, but they gate everything else and signal a maintained project.
 
-- **CI**: add `.github/workflows` running lint + build (test/e2e scripts already exist). Unblocks safe Dependabot merges
-- **Dev-dep audit**: `npm audit fix` + merge Dependabot PRs (#7/#12/#13/#14). Dev-only, not user-facing, but clears the noise
+- **CI**: add `.github/workflows` running lint + build. Unblocks safe Dependabot merges
 - **GitHub Releases**: cut releases with notes (npm & tags are already in sync at v1.1.0)
 
 ---
