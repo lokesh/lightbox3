@@ -1030,9 +1030,10 @@ lb.on('zoomOut', (e) =&gt; console.log('zoomOut', e));</code></pre>
 &lt;/a&gt;</code></pre>
 
       <h3 id="gs-script-tag">Script tag</h3>
-      <p>Load the CSS and JavaScript directly. Lightbox3 will auto-initialize on all <code>[data-lightbox]</code> elements.</p>
-      <pre class="code-block"><code class="language-html">&lt;link rel="stylesheet" href="lightbox3.css"&gt;
-&lt;script src="lightbox3.min.js"&gt;&lt;/script&gt;</code></pre>
+      <p>Load the CSS and JavaScript from a CDN. Lightbox3 will auto-initialize on all <code>[data-lightbox]</code> elements.</p>
+      <pre class="code-block"><code class="language-html">&lt;link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightbox3@1/dist/lightbox3.css"&gt;
+&lt;script src="https://cdn.jsdelivr.net/npm/lightbox3@1/dist/lightbox3.min.js"&gt;&lt;/script&gt;</code></pre>
+      <p>Prefer to self-host? Download <code>lightbox3.min.js</code> and <code>lightbox3.css</code> from the <a href="https://github.com/lokesh/lightbox3/releases/latest">latest release</a> and reference them the same way.</p>
 
       <h3 id="gs-npm">npm</h3>
       <p>Install the package, then import and initialize for more control.</p>
