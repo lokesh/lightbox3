@@ -66,12 +66,47 @@ Differentiators that make Lightbox3 memorable. Not all should be built — pick 
 
 ### Spring-physics thumbnail strip
 
-A horizontally scrollable thumbnail bar with spring-physics momentum — the same feel as the main viewer. The most "on-brand" delight item; natural follow-on to the gallery.
+A horizontally scrollable thumbnail bar with spring-physics momentum — the same feel as the main viewer. The most "on-brand" delight item; natural follow-on to the gallery. **Still in the design/riff stage — we expect to prototype multiple layouts before committing.**
 
+**Physics (settled):**
 - Flick-to-scroll with momentum and snap-to-item
-- Same `PAN_SPRING` / `SNAP_SPRING` presets, rubber-band overscroll
-- Active thumbnail scale/highlight animation
+- Same `PAN_SPRING` / `SNAP_SPRING` presets, rubber-band overscroll at both ends
+- Active thumbnail scale/highlight animation; indicator tracks the strip's **live spring position** during swipes (not just on settle), so the main image and the strip move as one system
 - Could ship as a standalone carousel component
+
+#### The layout problem: caption + strip both want the bottom
+
+Today the chrome is a single **floating pill**, centered at `bottom: 16px` (12px on mobile), backdrop-blur, radius 48px, laid out as `[caption · counter · close]`, `max-width: min(90vw, 600px)`. It already hides when zoomed and is absent for single images. The strip has to share that bottom zone. Candidate arrangements to prototype:
+
+**A. Stacked pills (strip above caption).** Two floating pills, both centered, strip riding just above the caption pill. Keeps the established pill language; each element stays content-width. Cost: two stacked layers eat vertical space at the bottom of the image — heavier on short/portrait screens. Feels most "native photos app."
+
+**B. Split — strip one side, caption other.** Strip floats bottom-left (or full-width-ish), caption pill bottom-right (or opposite). Resolves the vertical-stacking weight, but the centered-caption identity is lost and the two compete for horizontal room; the caption can currently run wide (up to 600px / 10-line clamp), so this needs a caption size cap.
+
+**C. Merged pill.** Thumbnails live *inside* the chrome pill — a scrollable thumb rail as one row, caption as a second row within the same blurred container. One coherent object, one blur, one hide/show spring. Risk: a tall two-row pill starts to feel like a docked bar rather than a light floaty element; horizontal thumb scroll inside a rounded pill needs careful edge masking.
+
+**D. Auto-hide / peek.** Strip is not persistent — it slides up from the bottom edge on hover (desktop) or tap (mobile), overlapping the image, and retracts after idle. Caption stays as-is. Keeps the default view clean and dodges the coexistence problem most of the time; the collision only exists while the strip is peeked. Pairs naturally with the floaty look.
+
+#### Floaty vs. docked (leaning floaty)
+
+Preference is for the strip to **float over the bottom of the image** — same as the caption — rather than dock below the image in its own reserved band. Floaty keeps the image large and matches the existing blur-pill aesthetic; thumbnails get a translucent, backdrop-blurred backing so they read over any image. The tradeoff to watch: floating thumbnails occlude the bottom of the photo, so we likely want them to auto-hide or dim when not in use (pushes toward **D**, or a stacked-but-auto-hiding hybrid of **A + D**).
+
+#### Coordination behaviors (apply to whichever layout wins)
+
+- Hide with the rest of the chrome when zoomed; absent for single-image galleries
+- During the peek/retract, animate on the same chrome-opacity spring so strip + caption feel like one system
+- Tapping a thumb triggers the normal navigate transition; the strip re-centers the new active thumb with momentum
+- Keep the overlay `pointer-events` discipline — the strip must not block dismiss/swipe on the image behind it
+
+#### Prototype plan
+
+Build a throwaway demo toggling between approaches **A / C / D** (skip **B** unless A and C both feel wrong) so we can feel them on a real phone before wiring the real spring integration. Decide on: persistent vs. auto-hide, floaty vs. docked, and whether caption and strip share a container. Mobile is the deciding surface — a persistent strip + caption may simply be too much furniture on a small portrait screen, which would settle us on **D**.
+
+#### Open questions
+
+- Does the strip auto-hide, and if so on what trigger (idle timer, zoom, first navigate)?
+- Thumbnail source: reuse the page thumbnails' `src`, or a separate `data-lightbox-thumb`? (ties into the responsive-images work above)
+- Desktop vs. mobile divergence — same layout both, or persistent on desktop / peek on mobile?
+- How does the strip interact with the caption's variable height (short caption vs. 10-line clamp)?
 
 ### Velocity-matched close animation
 
