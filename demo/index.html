@@ -156,7 +156,8 @@
 
     .nav-list-item:nth-child(1) > .nav-link { color: #4a7aed; }
     .nav-list-item:nth-child(2) > .nav-link { color: #4caf50; }
-    .nav-list-item:nth-child(3) > .nav-link { color: #e8594f; }
+    .nav-list-item:nth-child(3) > .nav-link { color: #f5a623; }
+    .nav-list-item:nth-child(4) > .nav-link { color: #e8594f; }
 
     .nav-sub-list {
       transition: border-color 0.15s ease;
@@ -164,7 +165,7 @@
 
     .nav-list-item:nth-child(1) .nav-sub-list { border-left-color: #4a7aed; }
     .nav-list-item:nth-child(2) .nav-sub-list { border-left-color: #4caf50; }
-    .nav-list-item:nth-child(3) .nav-sub-list { border-left-color: #e8594f; }
+    .nav-list-item:nth-child(4) .nav-sub-list { border-left-color: #e8594f; }
 
     .nav-github {
       display: inline-flex;
@@ -277,6 +278,15 @@
     .color-2 { color: #4caf50; }
     .color-3 { color: #f5a623; }
 
+    .featured-lead {
+      margin: 0 auto 12px;
+      max-width: 40rem;
+      text-align: center;
+      font-size: .95rem;
+      font-weight: 700;
+      color: var(--color-text-secondary);
+    }
+
     .intro-title {
       display: inline-flex;
       align-items: center;
@@ -315,7 +325,7 @@
     .logo-credit {
       display: block;
       margin-top: 1rem;
-      margin-bottom: 2rem;
+      margin-bottom: .75rem;
       color: var(--color-text-muted);
       font-weight: 800;
       font-size: 1.2rem;
@@ -324,6 +334,27 @@
 
     .logo-credit:hover {
       text-decoration: underline;
+    }
+
+    /* ——— Proof strip ——— */
+
+    .proof-strip {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 2px 8px;
+      margin: 0 0 2rem;
+      padding: 0;
+      list-style: none;
+      opacity: 0;
+      font-size: .8rem;
+      font-weight: 700;
+      color: var(--color-text-muted);
+    }
+
+    .proof-strip li + li::before {
+      content: '·';
+      margin-right: 8px;
     }
 
     @media (min-width: 720px) {
@@ -806,10 +837,18 @@
       <p class="intro-features"><span class="intro-word">Now</span> <span class="intro-word">with</span> <span class="intro-word color-1">fluid</span> <span class="intro-word color-1">animations</span> <span class="intro-word">and</span> <span class="intro-word color-3">touch&#8209;first</span> <span class="intro-word color-3">gestures.</span></p>
       <h1 class="intro-title">Lightbox<span class="intro-title-3">3</span></h1>
       <a href="https://lokeshdhakar.com" class="logo-credit">by Lokesh Dhakar</a>
+      <ul class="proof-strip">
+        <li>MIT license</li>
+        <li>16&nbsp;kB gzipped</li>
+        <li>Zero dependencies</li>
+        <li>TypeScript</li>
+        <li>v1.3.0 · Aug 2026</li>
+      </ul>
     </div>
   </header>
 
   <div class="featured">
+    <p class="featured-lead">Every animation is a real spring — velocity&#8209;aware and interruptible. Try catching an image mid&#8209;flight.</p>
     <div class="featured-grid">
       <a href="https://images.unsplash.com/photo-1654394237275-081d5455774b?w=2400&q=80" data-lightbox="featured" data-caption="Swipe through images or use ← → arrow keys">
         <img src="https://images.unsplash.com/photo-1654394237275-081d5455774b?w=600&h=450&fit=crop&q=80" alt="A view of a town with mountains in the background">
@@ -830,6 +869,7 @@
       <div class="mobile-nav-scroll">
         <a href="#examples" class="mobile-nav-link">Examples</a>
         <a href="#getting-started" class="mobile-nav-link">Getting started</a>
+        <a href="#lightbox2" class="mobile-nav-link">Lightbox2</a>
         <a href="#api" class="mobile-nav-link">API</a>
         <a href="https://github.com/lokesh/lightbox3" class="mobile-nav-link" target="_blank">GitHub</a>
       </div>
@@ -859,9 +899,9 @@
               <li class="nav-sub-item"><a href="#gs-markup" class="nav-link nav-link-sub" data-nav-target="getting-started-section">Markup</a></li>
               <li class="nav-sub-item"><a href="#gs-script-tag" class="nav-link nav-link-sub" data-nav-target="getting-started-section">Script tag</a></li>
               <li class="nav-sub-item"><a href="#gs-npm" class="nav-link nav-link-sub" data-nav-target="getting-started-section">npm</a></li>
-              <li class="nav-sub-item"><a href="#gs-lightbox2" class="nav-link nav-link-sub" data-nav-target="getting-started-section">Coming from Lightbox2?</a></li>
             </ul>
           </li>
+          <li class="nav-list-item"><a href="#lightbox2" class="nav-link">Upgrading from Lightbox2</a></li>
           <li class="nav-list-item"><a href="#api" class="nav-link">API</a>
             <ul class="nav-sub-list">
               <li class="nav-sub-item"><a href="#api-attributes" class="nav-link nav-link-sub" data-nav-target="api">Data attributes</a></li>
