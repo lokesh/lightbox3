@@ -29,6 +29,13 @@ export interface LightboxOptions {
   springOpen?: SpringConfig;
   springClose?: SpringConfig;
   padding?: number;
+  /**
+   * Wrap gallery navigation around at the ends: next from the last image goes
+   * to the first, prev from the first goes to the last. Off by default — the
+   * edge bounce is the signal that a set is finite, matching native photo
+   * viewers.
+   */
+  loop?: boolean;
   debug?: boolean;
 }
 
@@ -37,6 +44,7 @@ const DEFAULTS: Required<LightboxOptions> = {
   springOpen: SPRING_OPEN,
   springClose: SPRING_CLOSE,
   padding: 40,
+  loop: false,
   debug: false,
 };
 
@@ -451,12 +459,14 @@ export class Lightbox {
   // ─── Gallery preloading ─────────────────────────────────────
 
   private schedulePreloads(): void {
-    // Tier 1: always preload immediate neighbors
-    if (this.currentIndex > 0) {
-      this.preloadImage(this.gallery[this.currentIndex - 1].src);
+    // Tier 1: always preload immediate neighbors. When looping, the neighbor
+    // across the seam is wrapped — without this the wrap-around navigation
+    // lands on a thumbnail instead of full-res.
+    if (this.canNavigate(-1)) {
+      this.preloadImage(this.gallery[this.wrapIndex(this.currentIndex - 1)].src);
     }
-    if (this.currentIndex < this.gallery.length - 1) {
-      this.preloadImage(this.gallery[this.currentIndex + 1].src);
+    if (this.canNavigate(1)) {
+      this.preloadImage(this.gallery[this.wrapIndex(this.currentIndex + 1)].src);
     }
 
     // Tier 2+: after first navigation, preload remaining in travel direction
@@ -466,14 +476,30 @@ export class Lightbox {
   }
 
   private enqueueRemainingPreloads(): void {
-    // Build queue outward from current position
+    // Build queue outward from current position. When looping, the forward and
+    // backward walks wrap and meet in the middle, so the same src can be
+    // reached twice — dedupe as we build.
     const queue: string[] = [];
+    const seen = new Set<string>();
+    const push = (index: number) => {
+      const src = this.gallery[index]?.src;
+      if (!src || seen.has(src)) return;
+      seen.add(src);
+      queue.push(src);
+    };
+
     for (let offset = 2; offset < this.gallery.length; offset++) {
       const fwd = this.currentIndex + offset;
       const bwd = this.currentIndex - offset;
-      if (fwd < this.gallery.length) queue.push(this.gallery[fwd].src);
-      if (bwd >= 0) queue.push(this.gallery[bwd].src);
+      if (this.opts.loop) {
+        push(this.wrapIndex(fwd));
+        push(this.wrapIndex(bwd));
+      } else {
+        if (fwd < this.gallery.length) push(fwd);
+        if (bwd >= 0) push(bwd);
+      }
     }
+
     this.preloadQueue = queue.filter((src) => !this.preloadCache.has(src));
     this.processPreloadQueue();
   }
@@ -1220,11 +1246,34 @@ export class Lightbox {
 
   // ─── Gallery navigation ────────────────────────────────────
 
+  /**
+   * Normalize an index into gallery range, wrapping at both ends. Callers pass
+   * `currentIndex ± 1`, so this only ever wraps by one — but the modulo form
+   * keeps it correct for any input.
+   */
+  private wrapIndex(index: number): number {
+    const n = this.gallery.length;
+    if (n === 0) return 0;
+    return ((index % n) + n) % n;
+  }
+
+  /**
+   * Is there an image to move to in this direction? A looping gallery of 2+
+   * always has one; otherwise false at the corresponding edge. Every edge test
+   * in the nav path goes through here so `loop` has a single point of control.
+   */
+  private canNavigate(direction: 1 | -1): boolean {
+    const n = this.gallery.length;
+    if (n <= 1) return false;
+    if (this.opts.loop) return true;
+    return direction === 1 ? this.currentIndex < n - 1 : this.currentIndex > 0;
+  }
+
   next(): void {
     if (this.gallery.length <= 1) return;
     if (this.zoom.scale !== 1) return;
     this.forceCompleteStripAnimation();
-    if (this.currentIndex >= this.gallery.length - 1) {
+    if (!this.canNavigate(1)) {
       this.bounceStrip(-1);
       return;
     }
@@ -1235,7 +1284,7 @@ export class Lightbox {
     if (this.gallery.length <= 1) return;
     if (this.zoom.scale !== 1) return;
     this.forceCompleteStripAnimation();
-    if (this.currentIndex <= 0) {
+    if (!this.canNavigate(-1)) {
       this.bounceStrip(1);
       return;
     }
@@ -1268,7 +1317,7 @@ export class Lightbox {
     this.setThumbVisibility(true);
 
     // Update index and trigger
-    this.currentIndex += direction;
+    this.currentIndex = this.wrapIndex(this.currentIndex + direction);
     const item = this.gallery[this.currentIndex];
     this.state.triggerEl = item.triggerEl;
     this.state.currentSrc = item.src;
@@ -1337,8 +1386,8 @@ export class Lightbox {
 
       this.nextSlideEl = null;
       this.nextSlideImg = null;
-      if (this.currentIndex < this.gallery.length - 1) {
-        this.createAdjacentSlide(this.currentIndex + 1, slideWidth);
+      if (this.canNavigate(1)) {
+        this.createAdjacentSlide(this.wrapIndex(this.currentIndex + 1), slideWidth);
       }
     } else {
       // Backward: next is removed, current→next, prev→current, create new prev
@@ -1360,8 +1409,8 @@ export class Lightbox {
 
       this.prevSlideEl = null;
       this.prevSlideImg = null;
-      if (this.currentIndex > 0) {
-        this.createAdjacentSlide(this.currentIndex - 1, -slideWidth);
+      if (this.canNavigate(-1)) {
+        this.createAdjacentSlide(this.wrapIndex(this.currentIndex - 1), -slideWidth);
       }
     }
   }
@@ -1431,9 +1480,9 @@ export class Lightbox {
     if (Math.abs(this.stripOffset) > slideWidth / 2) {
       // Past halfway — complete the navigation
       const direction = (this.stripOffset < 0 ? 1 : -1) as 1 | -1;
-      const newIndex = this.currentIndex + direction;
-      if (newIndex >= 0 && newIndex < this.gallery.length) {
-        // Adjust offset to preserve visual positions after recycling
+      if (this.canNavigate(direction)) {
+        // Adjust offset to preserve visual positions after recycling.
+        // completeNavigation does the index wrap; don't wrap again here.
         this.stripOffset += direction * slideWidth;
         this.completeNavigation(direction);
         // completeNavigation resets stripOffset to 0, but we adjusted it above
@@ -1677,11 +1726,11 @@ export class Lightbox {
       return;
     }
 
-    const direction = offset < 0 ? 1 : -1;
-    const destIndex = this.currentIndex + direction;
-    const hasDestination = destIndex >= 0 && destIndex < this.gallery.length;
+    const direction = (offset < 0 ? 1 : -1) as 1 | -1;
+    if (!this.canNavigate(direction)) return; // At edge (bounce) — don't fade
 
-    if (!hasDestination) return; // At edge (bounce) — don't fade
+    // Wrapped, so the counter reads "1 / 5" across the seam rather than "6 / 5"
+    const destIndex = this.wrapIndex(this.currentIndex + direction);
 
     const slideWidth = window.innerWidth + SLIDE_GAP;
     const progress = Math.min(1, Math.abs(offset) / slideWidth);
@@ -2570,9 +2619,10 @@ export class Lightbox {
     const dx = e.clientX - this.swipeNav.startX;
     let offset = this.swipeNav.initialOffset + dx;
 
-    // Rubber-band at gallery edges
-    const atStart = this.currentIndex === 0;
-    const atEnd = this.currentIndex === this.gallery.length - 1;
+    // Rubber-band at gallery edges — a looping gallery has none, so the drag
+    // stays unresisted right through the seam.
+    const atStart = !this.canNavigate(-1);
+    const atEnd = !this.canNavigate(1);
 
     if (atStart && offset > 0) {
       offset = offset * RUBBER_BAND_FACTOR;
@@ -2602,9 +2652,8 @@ export class Lightbox {
 
     const direction = (offset < 0 ? 1 : -1) as 1 | -1;
 
-    // Don't navigate past edges
-    if (direction === 1 && this.currentIndex >= this.gallery.length - 1) shouldNavigate = false;
-    if (direction === -1 && this.currentIndex <= 0) shouldNavigate = false;
+    // Don't navigate past edges (a looping gallery has none)
+    if (!this.canNavigate(direction)) shouldNavigate = false;
 
     if (shouldNavigate) {
       this.completeSwipeNav(direction, vx);
@@ -3222,10 +3271,10 @@ export class Lightbox {
 
   private updateArrowVisibility(): void {
     if (this.chromePrev) {
-      this.chromePrev.style.display = this.currentIndex > 0 ? '' : 'none';
+      this.chromePrev.style.display = this.canNavigate(-1) ? '' : 'none';
     }
     if (this.chromeNext) {
-      this.chromeNext.style.display = this.currentIndex < this.gallery.length - 1 ? '' : 'none';
+      this.chromeNext.style.display = this.canNavigate(1) ? '' : 'none';
     }
   }
 
@@ -3503,10 +3552,13 @@ export class Lightbox {
       const rect = this.computeTargetRectFromAspectRatio(natW, natH);
       this.positionImageEl(img, rect);
 
-      // If preload is in progress, upgrade this slide as soon as it completes
+      // If preload is in progress, upgrade this slide as soon as it completes.
+      // Both listeners are `once` and tear down their sibling, so a failed load
+      // can't leave this slide element attached to the long-lived cache entry —
+      // a looping gallery creates slides without bound.
       if (cached && !cached.complete) {
         const onLoad = () => {
-          cached.removeEventListener('load', onLoad);
+          cached.removeEventListener('error', onError);
           if (this.state.isClosing || !this.state.isOpen) return;
           // Only upgrade if this img is still an adjacent slide (not yet current)
           if ((img === this.prevSlideImg || img === this.nextSlideImg) && cached.naturalWidth > 0) {
@@ -3515,7 +3567,9 @@ export class Lightbox {
             this.positionImageEl(img, fullRect);
           }
         };
-        cached.addEventListener('load', onLoad);
+        const onError = () => cached.removeEventListener('load', onLoad);
+        cached.addEventListener('load', onLoad, { once: true });
+        cached.addEventListener('error', onError, { once: true });
       }
     }
   }
@@ -3535,11 +3589,11 @@ export class Lightbox {
     if (!this.stripEl || this.gallery.length <= 1) return;
     const slideWidth = window.innerWidth + SLIDE_GAP;
 
-    if (this.currentIndex > 0) {
-      this.createAdjacentSlide(this.currentIndex - 1, -slideWidth);
+    if (this.canNavigate(-1)) {
+      this.createAdjacentSlide(this.wrapIndex(this.currentIndex - 1), -slideWidth);
     }
-    if (this.currentIndex < this.gallery.length - 1) {
-      this.createAdjacentSlide(this.currentIndex + 1, slideWidth);
+    if (this.canNavigate(1)) {
+      this.createAdjacentSlide(this.wrapIndex(this.currentIndex + 1), slideWidth);
     }
   }
 
@@ -3894,7 +3948,7 @@ export class Lightbox {
     const lines: string[] = [
       `── state ──────────────`,
       `isOpen:${on(this.state.isOpen)}  isAnim:${on(this.state.isAnimating)}  isClosing:${on(this.state.isClosing)}`,
-      `gallery: ${this.currentIndex + 1}/${this.gallery.length || 1}`,
+      `gallery: ${this.currentIndex + 1}/${this.gallery.length || 1}  loop:${on(this.opts.loop)}`,
       ``,
       `── springs ────────────`,
       `mainRaf:  ${on(this.rafId !== null)}`,
