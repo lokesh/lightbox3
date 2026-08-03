@@ -278,15 +278,6 @@
     .color-2 { color: #4caf50; }
     .color-3 { color: #f5a623; }
 
-    .featured-lead {
-      margin: 0 auto 12px;
-      max-width: 40rem;
-      text-align: center;
-      font-size: .95rem;
-      font-weight: 700;
-      color: var(--color-text-secondary);
-    }
-
     .intro-title {
       display: inline-flex;
       align-items: center;
@@ -325,7 +316,7 @@
     .logo-credit {
       display: block;
       margin-top: 1rem;
-      margin-bottom: .75rem;
+      margin-bottom: .25rem;
       color: var(--color-text-muted);
       font-weight: 800;
       font-size: 1.2rem;
@@ -343,11 +334,11 @@
       flex-wrap: wrap;
       justify-content: center;
       gap: 2px 8px;
-      margin: 0 0 2rem;
+      margin: 0 0 1rem;
       padding: 0;
       list-style: none;
       opacity: 0;
-      font-size: .8rem;
+      font-size: 1rem;
       font-weight: 700;
       color: var(--color-text-muted);
     }
@@ -355,6 +346,17 @@
     .proof-strip li + li::before {
       content: '·';
       margin-right: 8px;
+    }
+
+    @media (max-width: 719px) {
+      .proof-strip {
+        gap: 2px 6px;
+        font-size: .85rem;
+      }
+
+      .proof-strip li + li::before {
+        margin-right: 6px;
+      }
     }
 
     @media (min-width: 720px) {
@@ -848,7 +850,6 @@
   </header>
 
   <div class="featured">
-    <p class="featured-lead">Every animation is a real spring — velocity&#8209;aware and interruptible. Try catching an image mid&#8209;flight.</p>
     <div class="featured-grid">
       <a href="https://images.unsplash.com/photo-1654394237275-081d5455774b?w=2400&q=80" data-lightbox="featured" data-caption="Swipe through images or use ← → arrow keys">
         <img src="https://images.unsplash.com/photo-1654394237275-081d5455774b?w=600&h=450&fit=crop&q=80" alt="A view of a town with mountains in the background">
@@ -1061,6 +1062,7 @@ lb.on('zoomOut', (e) =&gt; console.log('zoomOut', e));</code></pre>
       <pre class="code-block"><code class="language-html">&lt;a href="photo.jpg" data-lightbox&gt;
   &lt;img src="thumb.jpg"&gt;
 &lt;/a&gt;</code></pre>
+      <p>That's it — no width or height attributes, no wrapper markup, no init code. One attribute on a plain <code>&lt;a&gt;</code> tag.</p>
       <p>To create a gallery, give each link the same <code>data-lightbox</code> value.</p>
       <pre class="code-block"><code class="language-html">&lt;a href="photo-1.jpg" data-lightbox="gallery"&gt;
   &lt;img src="thumb-1.jpg"&gt;
@@ -1082,8 +1084,13 @@ lb.on('zoomOut', (e) =&gt; console.log('zoomOut', e));</code></pre>
 
 const lb = Lightbox.init();</code></pre>
 
-      <h3 id="gs-lightbox2">Coming from Lightbox2?</h3>
-      <p>Lightbox3 uses the same markup pattern you already know — mostly the same HTML, way better UX.</p>
+    </section>
+
+    <!-- ——— Upgrading from Lightbox2 ——— -->
+    <span id="lightbox2"></span>
+    <section id="upgrading-lightbox2">
+      <div class="top-section-header" style="color: #f5a623;">Upgrading from Lightbox2</div>
+      <p>Your existing markup works as-is. Lightbox3 reads the same <code>data-lightbox</code> and <code>data-title</code> attributes — swap in the new files, remove jQuery, and you're done.</p>
       <table class="options-table">
         <thead><tr><th>What changed</th><th>Details</th></tr></thead>
         <tbody>
@@ -1322,6 +1329,7 @@ const lb = Lightbox.init();</code></pre>
 
   <footer>
     <div class="column">
+      MIT licensed — free for personal and commercial projects. No license keys, no subscriptions.<br>
       Created by <a href="https://lokeshdhakar.com">Lokesh Dhakar</a>
     </div>
   </footer>
@@ -1421,6 +1429,8 @@ const lb = Lightbox.init();</code></pre>
       if (title) title.style.opacity = '1';
       var credit = document.querySelector('.logo-credit');
       if (credit) credit.style.opacity = '1';
+      var proof = document.querySelector('.proof-strip');
+      if (proof) proof.style.opacity = '1';
       var featured = document.querySelector('.featured');
       if (featured) featured.style.opacity = '1';
       var main = document.querySelector('.main');
@@ -1560,6 +1570,16 @@ const lb = Lightbox.init();</code></pre>
       animateSpring(FADE_SPRING, function (v) {
         creditEl.style.opacity = Math.min(v, 1);
       });
+    });
+
+    // 5b) Fade in proof strip just after credit
+    after(titleRevealTime + 750, function () {
+      var proofEl = document.querySelector('.proof-strip');
+      if (proofEl) {
+        animateSpring(FADE_SPRING, function (v) {
+          proofEl.style.opacity = Math.min(v, 1);
+        });
+      }
     });
 
     // 6) Fade in featured grid
