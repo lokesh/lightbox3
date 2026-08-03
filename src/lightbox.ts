@@ -36,6 +36,16 @@ export interface LightboxOptions {
    * viewers.
    */
   loop?: boolean;
+  /**
+   * Scale images smaller than the viewport up to fit it. Off by default —
+   * upscaling past an image's natural size trades sharpness for scale, so it
+   * is the author's call, not ours.
+   *
+   * - `false` — never upscale; small images open at native size
+   * - `true`  — upscale to fill the viewport (minus `padding`)
+   * - number  — upscale, but never past N× the image's natural size
+   */
+  upscale?: boolean | number;
   debug?: boolean;
 }
 
@@ -45,6 +55,7 @@ const DEFAULTS: Required<LightboxOptions> = {
   springClose: SPRING_CLOSE,
   padding: 40,
   loop: false,
+  upscale: false,
   debug: false,
 };
 
@@ -697,15 +708,16 @@ export class Lightbox {
       targetRect = this.computeTargetRect(natW, natH);
     } else if (hint) {
       // Author-declared true dimensions — use the capped rect (respects the
-      // "never upscale" rule) so the morph lands exactly where the loaded image
-      // will, with no reflow when full-res arrives.
+      // upscale cap) so the morph lands exactly where the loaded image will,
+      // with no reflow when full-res arrives.
       natW = hint.w;
       natH = hint.h;
       targetRect = this.computeTargetRect(natW, natH);
     } else {
       // Full-res dimensions unknown — use thumbnail aspect ratio to fill the
-      // viewport. Without this, the "never upscale" cap in computeTargetRect
-      // keeps the image at the thumbnail's small pixel size.
+      // viewport. Without this, the upscale cap in computeTargetRect would
+      // keep the image at the thumbnail's small pixel size. When `upscale` is
+      // on the two rects agree, so this path stops causing a reflow on load.
       natW = thumbNatW;
       natH = thumbNatH;
       targetRect = this.computeTargetRectFromAspectRatio(natW, natH);
@@ -1800,6 +1812,12 @@ export class Lightbox {
 
   // ─── Zoom ────────────────────────────────────────────────────
 
+  /**
+   * True when the image has detail left to reveal — i.e. its natural size is
+   * meaningfully larger than the rect it is displayed in. With `upscale` on,
+   * a small image fills the viewport at a fit rect larger than natural, so
+   * this is false and tap-to-zoom correctly becomes tap-to-close.
+   */
   private isZoomable(): boolean {
     const { fitRect, naturalWidth, naturalHeight } = this.zoom;
     return naturalWidth > fitRect.width * 1.05 || naturalHeight > fitRect.height * 1.05;
@@ -1812,6 +1830,12 @@ export class Lightbox {
     return Math.min(Math.max(nativeScale, 2), 3);
   }
 
+  /**
+   * Ceiling for pinch-to-zoom. Unlike tap zoom, pinch is not gated by
+   * isZoomable() — a pinch that refuses to move reads as broken, so the floor
+   * of 2 applies even when there is no extra detail to show (an upscaled small
+   * image, where nativeScale < 1). Blurring past native is the accepted cost.
+   */
   private getMaxZoomScale(): number {
     const { fitRect, naturalWidth } = this.zoom;
     const nativeScale = naturalWidth / fitRect.width;
@@ -3798,26 +3822,41 @@ export class Lightbox {
     return null;
   }
 
-  private computeTargetRect(naturalWidth: number, naturalHeight: number): DOMRect {
+  /**
+   * Largest multiple of natural size an image may be drawn at, per the
+   * `upscale` option. 1 means never upscale. Junk values (0, negative, NaN)
+   * fall back to 1 rather than collapsing the image to nothing.
+   */
+  private maxFitScale(): number {
+    const { upscale } = this.opts;
+    if (upscale === true) return Infinity;
+    if (typeof upscale === 'number' && upscale > 1) return upscale;
+    return 1;
+  }
+
+  /**
+   * Fit rect for an image of the given natural size: centered in the viewport,
+   * inset by the target padding, scaled down to fit and up only as far as
+   * `maxScale` allows.
+   */
+  private computeTargetRect(
+    naturalWidth: number,
+    naturalHeight: number,
+    maxScale: number = this.maxFitScale(),
+  ): DOMRect {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const p = this.getTargetImagePadding();
-    const scale = Math.min((vw - p * 2) / naturalWidth, (vh - p * 2) / naturalHeight, 1);
+    const scale = Math.min((vw - p * 2) / naturalWidth, (vh - p * 2) / naturalHeight, maxScale);
     const w = naturalWidth * scale;
     const h = naturalHeight * scale;
     return new DOMRect((vw - w) / 2, (vh - h) / 2, w, h);
   }
 
-  /** Like computeTargetRect but without the scale ≤ 1 cap. Used when full-res
-   *  dimensions are unknown — fills the viewport based on aspect ratio alone. */
+  /** computeTargetRect with no upscale cap. Used when full-res dimensions are
+   *  unknown — fills the viewport based on aspect ratio alone. */
   private computeTargetRectFromAspectRatio(width: number, height: number): DOMRect {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const p = this.getTargetImagePadding();
-    const scale = Math.min((vw - p * 2) / width, (vh - p * 2) / height);
-    const w = width * scale;
-    const h = height * scale;
-    return new DOMRect((vw - w) / 2, (vh - h) / 2, w, h);
+    return this.computeTargetRect(width, height, Infinity);
   }
 
   private loadImage(src: string): Promise<{ width: number; height: number }> {
