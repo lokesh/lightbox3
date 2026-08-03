@@ -1138,6 +1138,12 @@ const lb = Lightbox.init();</code></pre>
             <td>Viewport padding in pixels around the opened image.</td>
           </tr>
           <tr>
+            <td><code>loop</code></td>
+            <td><code>boolean</code></td>
+            <td><code>false</code></td>
+            <td>Wrap gallery navigation around at the ends — next from the last image goes to the first, prev from the first goes to the last. Off by default: the edge bounce signals that a set is finite.</td>
+          </tr>
+          <tr>
             <td><code>debug</code></td>
             <td><code>boolean</code></td>
             <td><code>false</code></td>
@@ -1277,7 +1283,9 @@ const lb = Lightbox.init();</code></pre>
   <script type="module">
     import { Lightbox } from '/dist/lightbox3.esm.js';
 
-    let lb = Lightbox.init();
+    // ?loop exercises gallery wrap-around against the demo galleries.
+    const loop = new URLSearchParams(location.search).has('loop');
+    let lb = Lightbox.init({ loop });
 
     // ——— Preload high-res images ———
     // Featured first, then the rest, one at a time to avoid bandwidth contention.
@@ -1338,7 +1346,7 @@ const lb = Lightbox.init();</code></pre>
         btn.classList.add('active');
         const preset = btn.dataset.preset;
         lb.destroy();
-        lb = Lightbox.init(springPresets[preset]);
+        lb = Lightbox.init({ ...springPresets[preset], loop });
         setupEvents();
         springCode.textContent = presetCode[preset];
         if (window.Prism) Prism.highlightElement(springCode);
