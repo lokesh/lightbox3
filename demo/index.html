@@ -1144,6 +1144,12 @@ const lb = Lightbox.init();</code></pre>
             <td>Wrap gallery navigation around at the ends — next from the last image goes to the first, prev from the first goes to the last. Off by default: the edge bounce signals that a set is finite.</td>
           </tr>
           <tr>
+            <td><code>upscale</code></td>
+            <td><code>boolean | number</code></td>
+            <td><code>false</code></td>
+            <td>Scale images smaller than the viewport up to fit it. <code>true</code> fills the viewport; a number caps how far past natural size an image may go (e.g. <code>2</code> allows at most 2×). Off by default: upscaling trades sharpness for size, so it's the author's call.</td>
+          </tr>
+          <tr>
             <td><code>debug</code></td>
             <td><code>boolean</code></td>
             <td><code>false</code></td>
@@ -1283,9 +1289,12 @@ const lb = Lightbox.init();</code></pre>
   <script type="module">
     import { Lightbox } from '/dist/lightbox3.esm.js';
 
+    const params = new URLSearchParams(location.search);
     // ?loop exercises gallery wrap-around against the demo galleries.
-    const loop = new URLSearchParams(location.search).has('loop');
-    let lb = Lightbox.init({ loop });
+    const loop = params.has('loop');
+    // ?upscale exercises small-image upscaling; ?upscale=2 caps it at 2× natural.
+    const upscale = params.has('upscale') ? Number(params.get('upscale')) || true : false;
+    let lb = Lightbox.init({ loop, upscale });
 
     // ——— Preload high-res images ———
     // Featured first, then the rest, one at a time to avoid bandwidth contention.
@@ -1346,7 +1355,7 @@ const lb = Lightbox.init();</code></pre>
         btn.classList.add('active');
         const preset = btn.dataset.preset;
         lb.destroy();
-        lb = Lightbox.init({ ...springPresets[preset], loop });
+        lb = Lightbox.init({ ...springPresets[preset], loop, upscale });
         setupEvents();
         springCode.textContent = presetCode[preset];
         if (window.Prism) Prism.highlightElement(springCode);
