@@ -139,4 +139,5 @@ Exported from `spring.ts`:
 Defined locally in `lightbox.ts`:
 - `PAN_SPRING` (stiffness: 170, damping: 26) — pan momentum, strip slide animation (softer, more glide)
 - `SNAP_SPRING` (stiffness: 300, damping: 30) — rubber band snap-back, swipe snap-back (stiffer)
+- `SHRINK_SPRING` (stiffness: 200, damping: 28) — closing into the viewport center when the thumbnail isn't in view
 - `PRESS_SPRING` (stiffness: 300, damping: 20) — button press feedback animation

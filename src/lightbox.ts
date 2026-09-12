@@ -67,6 +67,11 @@ const SPINNER_DELAY_MS = 300;
 // visible through ~80% of the close animation and fades quickly at the end.
 const TEXT_LINK_OPACITY_THRESHOLD = 0.2;
 
+// Closing into the viewport center (no visible thumbnail): the image fades out
+// as its scale drops from START to END, so it's gone before it shrinks to a speck.
+const SHRINK_FADE_START = 0.5;
+const SHRINK_FADE_END = 0.15;
+
 // Default border-radius for lightbox images, read from --lb-image-border-radius.
 const DEFAULT_IMAGE_BORDER_RADIUS = 24;
 
@@ -157,6 +162,9 @@ const RUBBER_BAND_FACTOR = 0.35;
 const VELOCITY_WINDOW = 80;
 const PAN_SPRING: SpringConfig = { stiffness: 170, damping: 26, mass: 1 };
 const SNAP_SPRING: SpringConfig = { stiffness: 300, damping: 30, mass: 1 };
+// Closing into the viewport center. Softer than springClose: the image fades
+// out partway through the shrink, so a stiff spring makes it vanish too quickly.
+const SHRINK_SPRING: SpringConfig = { stiffness: 200, damping: 28, mass: 1 };
 const PINCH_RUBBER_BAND_FACTOR = 0.4;
 const PINCH_DISMISS_RUBBER_BAND_FACTOR = 0.65;
 const PINCH_CLOSE_SCALE = 0.8; // Displayed scale below which pinch commits close
@@ -237,6 +245,9 @@ export class Lightbox {
 
   // Text-link trigger: no FLIP morph, load then fade in
   private isTextLink = false;
+
+  // Closing by shrinking into the viewport center — fades the image near the end
+  private shrinkingToCenter = false;
   private spinnerEl: HTMLDivElement | null = null;
   private spinnerTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -573,22 +584,7 @@ export class Lightbox {
     // tab/window, etc.) rather than hijacking them to open the lightbox.
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
-    const src = this.getSrcFromTrigger(trigger);
-    if (!src) return;
-
-    // If lightbox is open, closing, or animating, clean up then open the new one
-    if (this.state.isOpen || this.state.isAnimating || this.state.isClosing) {
-      this.stopSpring();
-      this.stopFitTransition();
-      this.stopStripSpring();
-      this.state.isAnimating = false;
-      this.state.isClosing = false;
-      this.state.isDismissClosing = false;
-      this.finishClose();
-    }
-
-    this.buildGallery(trigger);
-    this.open(src, trigger);
+    this.openTrigger(trigger);
   }
 
   private handleKeydown(e: KeyboardEvent): void {
@@ -653,7 +649,64 @@ export class Lightbox {
 
   // ─── Open / Close ────────────────────────────────────────────
 
-  open(src: string, triggerEl?: HTMLElement): void {
+  /**
+   * Open the lightbox from code.
+   *
+   * - `open('slides')` — first image of the `data-lightbox="slides"` gallery
+   * - `open('slides', 2)` — third image (0-based, matches event `index`)
+   * - `open(el)` — a trigger element, same as clicking it
+   *
+   * A string that matches no gallery is treated as an image URL and opened on
+   * its own, with no gallery (`triggerEl` optionally sets the morph origin).
+   */
+  open(gallery: string, index?: number): void;
+  open(trigger: HTMLElement): void;
+  open(src: string, triggerEl?: HTMLElement): void;
+  open(target: string | HTMLElement, indexOrTrigger?: number | HTMLElement): void {
+    if (target instanceof HTMLElement) {
+      this.openTrigger(target.closest<HTMLElement>(this.opts.selector) || target);
+      return;
+    }
+
+    if (!(indexOrTrigger instanceof HTMLElement)) {
+      const items = document.querySelectorAll<HTMLElement>(
+        `[data-lightbox="${CSS.escape(target)}"]`,
+      );
+      if (items.length > 0) {
+        const i = Math.min(Math.max(Math.trunc(indexOrTrigger || 0), 0), items.length - 1);
+        this.openTrigger(items[i]);
+        return;
+      }
+    }
+
+    // Image URL, standalone
+    this.resetForOpen();
+    this.openImage(target, indexOrTrigger instanceof HTMLElement ? indexOrTrigger : undefined);
+  }
+
+  /** Open a trigger element and its gallery — the shared path for clicks and open(). */
+  private openTrigger(trigger: HTMLElement): void {
+    const src = this.getSrcFromTrigger(trigger);
+    if (!src) return;
+    this.resetForOpen();
+    this.buildGallery(trigger);
+    this.openImage(src, trigger);
+  }
+
+  /** If the lightbox is open, closing, or animating, tear it down instantly so a
+   *  new open can start. Opening always wins over whatever is in flight. */
+  private resetForOpen(): void {
+    if (!this.state.isOpen && !this.state.isAnimating && !this.state.isClosing) return;
+    this.stopSpring();
+    this.stopFitTransition();
+    this.stopStripSpring();
+    this.state.isAnimating = false;
+    this.state.isClosing = false;
+    this.state.isDismissClosing = false;
+    this.finishClose();
+  }
+
+  private openImage(src: string, triggerEl?: HTMLElement): void {
     if (this.state.isOpen || this.state.isAnimating) return;
     this.debugLog('open');
 
@@ -686,18 +739,39 @@ export class Lightbox {
     const thumbRect = this.getThumbRect(triggerEl!);
     this.thumbBorderRadius = this.getThumbBorderRadius(triggerEl!);
 
+    // A programmatic open can target a thumbnail that is scrolled away or
+    // hidden (display: none). Morphing from it would fly the image in from
+    // off-screen or grow it out of the top-left corner, so fade and scale up
+    // from the viewport center instead — the same fallback close() uses.
+    const fromCenter =
+      thumbRect.width === 0 || thumbRect.height === 0 || !this.isInViewport(thumbRect);
+
+    const cached = this.preloadCache.get(src);
+    const fullResReady = cached?.complete && cached.naturalWidth > 0;
+    const hint = this.getDimensionHint(triggerEl!);
+
+    // Hidden, never-loaded thumbnail with no size info: there is nothing to
+    // show or size against yet, so load first like a trigger-less open.
+    if (fromCenter && !fullResReady && !hint && !thumbImg!.naturalWidth) {
+      this.openTextLink(null, src);
+      return;
+    }
+
+    const originRect = fromCenter
+      ? new DOMRect(window.innerWidth / 2, window.innerHeight / 2, 0, 0)
+      : thumbRect;
+
     this.createOverlay(thumbSrc || src);
     this.createChrome();
-    this.computeChromeDrift(thumbRect.x + thumbRect.width / 2, thumbRect.y + thumbRect.height / 2);
+    this.computeChromeDrift(
+      originRect.x + originRect.width / 2,
+      originRect.y + originRect.height / 2,
+    );
     document.addEventListener('keydown', this.handleKeydown);
     this.setThumbVisibility(false);
 
     const thumbNatW = thumbImg!.naturalWidth || thumbRect.width;
     const thumbNatH = thumbImg!.naturalHeight || thumbRect.height;
-
-    const cached = this.preloadCache.get(src);
-    const fullResReady = cached?.complete && cached.naturalWidth > 0;
-    const hint = this.getDimensionHint(triggerEl!);
 
     let natW: number;
     let natH: number;
@@ -732,11 +806,14 @@ export class Lightbox {
     this.zoom.naturalHeight = natH;
 
     // Compute the FLIP transform: what transform makes the image look like it's at thumbRect?
-    const flipX = thumbRect.x + thumbRect.width / 2 - (targetRect.x + targetRect.width / 2);
-    const flipY = thumbRect.y + thumbRect.height / 2 - (targetRect.y + targetRect.height / 2);
+    const flipX = originRect.x + originRect.width / 2 - (targetRect.x + targetRect.width / 2);
+    const flipY = originRect.y + originRect.height / 2 - (targetRect.y + targetRect.height / 2);
 
-    // Compute FLIP scale and crop insets (handles CSS cover + server-side crop)
-    const { flipScale, hasCrop } = this.computeFlipCrop(thumbRect, targetRect, triggerEl!, false);
+    // Compute FLIP scale and crop insets (handles CSS cover + server-side crop).
+    // The center origin is a point, so it scales up from 0 with no crop.
+    const { flipScale, hasCrop } = fromCenter
+      ? { flipScale: 0, hasCrop: false }
+      : this.computeFlipCrop(thumbRect, targetRect, triggerEl!, false);
 
     // Start full-res load immediately so it continues regardless of animation interrupts
     if (thumbSrc && thumbSrc !== src) {
@@ -1094,12 +1171,17 @@ export class Lightbox {
     this.state.isAnimating = true;
 
     const thumbRect = this.state.triggerEl ? this.getThumbRect(this.state.triggerEl) : null;
+    const thumbVisible = !!thumbRect && this.isInViewport(thumbRect);
 
-    if (thumbRect) {
+    // Chrome drifts toward where the image is headed: the thumbnail, or the
+    // viewport center when there is no visible thumbnail to morph back to.
+    if (thumbVisible) {
       this.computeChromeDrift(
         thumbRect.x + thumbRect.width / 2,
         thumbRect.y + thumbRect.height / 2,
       );
+    } else {
+      this.computeChromeDrift(window.innerWidth / 2, window.innerHeight / 2);
     }
 
     const triggerEl = this.state.triggerEl;
@@ -1117,11 +1199,15 @@ export class Lightbox {
 
     const currentBR = this.getTargetBorderRadius();
 
-    if (!thumbRect || !this.isInViewport(thumbRect)) {
+    // No visible thumbnail — scale down into the viewport center, the reverse
+    // of a centered open. The image fades out over the last stretch of the
+    // shrink (see SHRINK_FADE_START/END) rather than collapsing to a speck.
+    if (!thumbVisible) {
+      this.shrinkingToCenter = true;
       this.animateSpring(
         { translateX: 0, translateY: 0, scale: 1, opacity: 1, crop: 0, borderRadius: currentBR },
-        { translateX: 0, translateY: 0, scale: 1, opacity: 0, crop: 0, borderRadius: currentBR },
-        this.opts.springClose,
+        { translateX: 0, translateY: 0, scale: 0, opacity: 0, crop: 0, borderRadius: currentBR },
+        SHRINK_SPRING,
         () => this.finishClose(),
         closeWhenInvisible,
       );
@@ -1190,6 +1276,7 @@ export class Lightbox {
     this.state.isClosing = false;
     this.state.isDismissClosing = false;
     this.state.triggerEl = null;
+    this.shrinkingToCenter = false;
     this.zoom = this.defaultZoomState();
     this.pointerCache = [];
     this.pinch = this.defaultPinchState();
@@ -1622,7 +1709,10 @@ export class Lightbox {
     img.style.transform = `translate(${state.translateX}px, ${state.translateY}px) scale(${state.scale})`;
     backdrop.style.opacity = String(state.opacity);
 
-    if (this.isTextLink) {
+    if (this.shrinkingToCenter) {
+      const t = (state.scale - SHRINK_FADE_END) / (SHRINK_FADE_START - SHRINK_FADE_END);
+      img.style.opacity = String(Math.min(1, Math.max(0, t)));
+    } else if (this.isTextLink) {
       img.style.opacity = String(Math.min(1, state.opacity / TEXT_LINK_OPACITY_THRESHOLD));
     } else if (this.state.isClosing && !this.state.isDismissClosing && window.innerWidth <= 600) {
       // Mobile: thumbnail stays visible during close, so fade the image in
@@ -2362,8 +2452,11 @@ export class Lightbox {
     const thumbRect = this.state.triggerEl ? this.getThumbRect(this.state.triggerEl) : null;
     const currentBR = this.getTargetBorderRadius();
 
-    // Off-screen thumbnails — fade out in place
+    // Off-screen thumbnails — scale down into the viewport center. The drag
+    // has already dimmed the backdrop, so also wait for the image to fade
+    // away before removing the overlay.
     if (!thumbRect || !this.isInViewport(thumbRect)) {
+      this.shrinkingToCenter = true;
       this.animateSpring(
         {
           translateX: offsetX,
@@ -2373,17 +2466,10 @@ export class Lightbox {
           crop: 0,
           borderRadius: currentBR,
         },
-        {
-          translateX: offsetX,
-          translateY: offsetY,
-          scale,
-          opacity: 0,
-          crop: 0,
-          borderRadius: currentBR,
-        },
-        this.opts.springClose,
+        { translateX: 0, translateY: 0, scale: 0, opacity: 0, crop: 0, borderRadius: currentBR },
+        SHRINK_SPRING,
         () => this.finishClose(),
-        (s) => s.opacity < 0.01,
+        (s) => s.opacity < 0.01 && s.scale < SHRINK_FADE_END,
         { translateX: velocityX, translateY: velocityY },
       );
       return;
@@ -2879,14 +2965,15 @@ export class Lightbox {
     const thumbRect = this.state.triggerEl ? this.getThumbRect(this.state.triggerEl) : null;
     const currentBR = this.getTargetBorderRadius();
 
-    // Off-screen or no thumbnail — fade out in place
+    // Off-screen or no thumbnail — scale down into the viewport center
     if (!thumbRect || !this.isInViewport(thumbRect)) {
+      this.shrinkingToCenter = true;
       this.animateSpring(
         { translateX: panX, translateY: panY, scale, opacity, crop: 0, borderRadius: currentBR },
-        { translateX: panX, translateY: panY, scale, opacity: 0, crop: 0, borderRadius: currentBR },
-        this.opts.springClose,
+        { translateX: 0, translateY: 0, scale: 0, opacity: 0, crop: 0, borderRadius: currentBR },
+        SHRINK_SPRING,
         () => this.finishClose(),
-        (s) => s.opacity < 0.01,
+        (s) => s.opacity < 0.01 && s.scale < SHRINK_FADE_END,
       );
       return;
     }
