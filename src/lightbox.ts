@@ -573,22 +573,7 @@ export class Lightbox {
     // tab/window, etc.) rather than hijacking them to open the lightbox.
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
-    const src = this.getSrcFromTrigger(trigger);
-    if (!src) return;
-
-    // If lightbox is open, closing, or animating, clean up then open the new one
-    if (this.state.isOpen || this.state.isAnimating || this.state.isClosing) {
-      this.stopSpring();
-      this.stopFitTransition();
-      this.stopStripSpring();
-      this.state.isAnimating = false;
-      this.state.isClosing = false;
-      this.state.isDismissClosing = false;
-      this.finishClose();
-    }
-
-    this.buildGallery(trigger);
-    this.open(src, trigger);
+    this.openTrigger(trigger);
   }
 
   private handleKeydown(e: KeyboardEvent): void {
@@ -653,7 +638,64 @@ export class Lightbox {
 
   // ─── Open / Close ────────────────────────────────────────────
 
-  open(src: string, triggerEl?: HTMLElement): void {
+  /**
+   * Open the lightbox from code.
+   *
+   * - `open('slides')` — first image of the `data-lightbox="slides"` gallery
+   * - `open('slides', 2)` — third image (0-based, matches event `index`)
+   * - `open(el)` — a trigger element, same as clicking it
+   *
+   * A string that matches no gallery is treated as an image URL and opened on
+   * its own, with no gallery (`triggerEl` optionally sets the morph origin).
+   */
+  open(gallery: string, index?: number): void;
+  open(trigger: HTMLElement): void;
+  open(src: string, triggerEl?: HTMLElement): void;
+  open(target: string | HTMLElement, indexOrTrigger?: number | HTMLElement): void {
+    if (target instanceof HTMLElement) {
+      this.openTrigger(target.closest<HTMLElement>(this.opts.selector) || target);
+      return;
+    }
+
+    if (!(indexOrTrigger instanceof HTMLElement)) {
+      const items = document.querySelectorAll<HTMLElement>(
+        `[data-lightbox="${CSS.escape(target)}"]`,
+      );
+      if (items.length > 0) {
+        const i = Math.min(Math.max(Math.trunc(indexOrTrigger || 0), 0), items.length - 1);
+        this.openTrigger(items[i]);
+        return;
+      }
+    }
+
+    // Image URL, standalone
+    this.resetForOpen();
+    this.openImage(target, indexOrTrigger instanceof HTMLElement ? indexOrTrigger : undefined);
+  }
+
+  /** Open a trigger element and its gallery — the shared path for clicks and open(). */
+  private openTrigger(trigger: HTMLElement): void {
+    const src = this.getSrcFromTrigger(trigger);
+    if (!src) return;
+    this.resetForOpen();
+    this.buildGallery(trigger);
+    this.openImage(src, trigger);
+  }
+
+  /** If the lightbox is open, closing, or animating, tear it down instantly so a
+   *  new open can start. Opening always wins over whatever is in flight. */
+  private resetForOpen(): void {
+    if (!this.state.isOpen && !this.state.isAnimating && !this.state.isClosing) return;
+    this.stopSpring();
+    this.stopFitTransition();
+    this.stopStripSpring();
+    this.state.isAnimating = false;
+    this.state.isClosing = false;
+    this.state.isDismissClosing = false;
+    this.finishClose();
+  }
+
+  private openImage(src: string, triggerEl?: HTMLElement): void {
     if (this.state.isOpen || this.state.isAnimating) return;
     this.debugLog('open');
 
@@ -686,18 +728,39 @@ export class Lightbox {
     const thumbRect = this.getThumbRect(triggerEl!);
     this.thumbBorderRadius = this.getThumbBorderRadius(triggerEl!);
 
+    // A programmatic open can target a thumbnail that is scrolled away or
+    // hidden (display: none). Morphing from it would fly the image in from
+    // off-screen or grow it out of the top-left corner, so fade and scale up
+    // from the viewport center instead — the same fallback close() uses.
+    const fromCenter =
+      thumbRect.width === 0 || thumbRect.height === 0 || !this.isInViewport(thumbRect);
+
+    const cached = this.preloadCache.get(src);
+    const fullResReady = cached?.complete && cached.naturalWidth > 0;
+    const hint = this.getDimensionHint(triggerEl!);
+
+    // Hidden, never-loaded thumbnail with no size info: there is nothing to
+    // show or size against yet, so load first like a trigger-less open.
+    if (fromCenter && !fullResReady && !hint && !thumbImg!.naturalWidth) {
+      this.openTextLink(null, src);
+      return;
+    }
+
+    const originRect = fromCenter
+      ? new DOMRect(window.innerWidth / 2, window.innerHeight / 2, 0, 0)
+      : thumbRect;
+
     this.createOverlay(thumbSrc || src);
     this.createChrome();
-    this.computeChromeDrift(thumbRect.x + thumbRect.width / 2, thumbRect.y + thumbRect.height / 2);
+    this.computeChromeDrift(
+      originRect.x + originRect.width / 2,
+      originRect.y + originRect.height / 2,
+    );
     document.addEventListener('keydown', this.handleKeydown);
     this.setThumbVisibility(false);
 
     const thumbNatW = thumbImg!.naturalWidth || thumbRect.width;
     const thumbNatH = thumbImg!.naturalHeight || thumbRect.height;
-
-    const cached = this.preloadCache.get(src);
-    const fullResReady = cached?.complete && cached.naturalWidth > 0;
-    const hint = this.getDimensionHint(triggerEl!);
 
     let natW: number;
     let natH: number;
@@ -732,11 +795,14 @@ export class Lightbox {
     this.zoom.naturalHeight = natH;
 
     // Compute the FLIP transform: what transform makes the image look like it's at thumbRect?
-    const flipX = thumbRect.x + thumbRect.width / 2 - (targetRect.x + targetRect.width / 2);
-    const flipY = thumbRect.y + thumbRect.height / 2 - (targetRect.y + targetRect.height / 2);
+    const flipX = originRect.x + originRect.width / 2 - (targetRect.x + targetRect.width / 2);
+    const flipY = originRect.y + originRect.height / 2 - (targetRect.y + targetRect.height / 2);
 
-    // Compute FLIP scale and crop insets (handles CSS cover + server-side crop)
-    const { flipScale, hasCrop } = this.computeFlipCrop(thumbRect, targetRect, triggerEl!, false);
+    // Compute FLIP scale and crop insets (handles CSS cover + server-side crop).
+    // The center origin is a point, so it scales up from 0 with no crop.
+    const { flipScale, hasCrop } = fromCenter
+      ? { flipScale: 0, hasCrop: false }
+      : this.computeFlipCrop(thumbRect, targetRect, triggerEl!, false);
 
     // Start full-res load immediately so it continues regardless of animation interrupts
     if (thumbSrc && thumbSrc !== src) {
